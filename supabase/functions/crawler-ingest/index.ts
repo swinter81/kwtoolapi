@@ -71,8 +71,10 @@ async function upsertProduct(supabase: any, payload: any) {
     .eq("knx_manufacturer_id", manufacturerKnxId)
     .single();
 
+  console.log("Manufacturer lookup:", { manufacturerKnxId, mfr, mfrErr });
+
   if (mfrErr || !mfr) {
-    return json({ error: `Manufacturer ${manufacturerKnxId} not found` }, 404);
+    return json({ error: `Manufacturer ${manufacturerKnxId} not found`, detail: mfrErr?.message }, 404);
   }
 
   // Try match by order number
