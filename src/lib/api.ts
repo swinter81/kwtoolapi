@@ -55,4 +55,15 @@ export const api = {
   },
   stats: () => callApi('public-api-stats'),
   health: () => callApi('public-api-health'),
+  ingest: (resource: string, body: unknown, secret: string) => {
+    return fetch(`${FUNCTIONS_URL}/public-api-ingest/${resource}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'X-API-Secret': secret,
+      },
+      body: JSON.stringify(body),
+    }).then(r => r.json());
+  },
 };
