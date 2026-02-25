@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Database, Cpu, Terminal, BarChart3, Heart, Zap, BookOpen,
-  ChevronRight, Menu, X, Globe
+  ChevronRight, Menu, X, Globe, Upload
 } from "lucide-react";
 
 const navItems = [
@@ -17,6 +17,7 @@ const navItems = [
   { label: "DPTs", href: "/dpts", icon: Database },
   { label: "Statistics", href: "/stats", icon: BarChart3 },
   { label: "Health", href: "/health", icon: Heart },
+  { label: "Ingest", href: "/ingest", icon: Upload },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

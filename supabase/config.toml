@@ -1,1 +1,4 @@
 project_id = "milfaoakcaenjsgkdamh"
+
+[functions.public-api-ingest]
+verify_jwt = false
