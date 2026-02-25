@@ -384,6 +384,132 @@ export type Database = {
         }
         Relationships: []
       }
+      community_crawl_sources: {
+        Row: {
+          base_url: string | null
+          created_at: string | null
+          document_url_pattern: string | null
+          exclude_url_pattern: string | null
+          id: string | null
+          is_active: boolean | null
+          last_discovery_at: string | null
+          last_processing_at: string | null
+          manufacturer_knx_id: string | null
+          max_urls_per_run: number | null
+          name: string | null
+          product_url_pattern: string | null
+          rate_limit_seconds: number | null
+          sitemap_url: string | null
+          total_urls_known: number | null
+          total_urls_processed: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          base_url?: string | null
+          created_at?: string | null
+          document_url_pattern?: string | null
+          exclude_url_pattern?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          last_discovery_at?: string | null
+          last_processing_at?: string | null
+          manufacturer_knx_id?: string | null
+          max_urls_per_run?: number | null
+          name?: string | null
+          product_url_pattern?: string | null
+          rate_limit_seconds?: number | null
+          sitemap_url?: string | null
+          total_urls_known?: number | null
+          total_urls_processed?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          base_url?: string | null
+          created_at?: string | null
+          document_url_pattern?: string | null
+          exclude_url_pattern?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          last_discovery_at?: string | null
+          last_processing_at?: string | null
+          manufacturer_knx_id?: string | null
+          max_urls_per_run?: number | null
+          name?: string | null
+          product_url_pattern?: string | null
+          rate_limit_seconds?: number | null
+          sitemap_url?: string | null
+          total_urls_known?: number | null
+          total_urls_processed?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      community_crawl_urls: {
+        Row: {
+          content_hash: string | null
+          created_at: string | null
+          discovered_via: string | null
+          documents_extracted: number | null
+          error_message: string | null
+          etag: string | null
+          extraction_confidence: number | null
+          id: string | null
+          last_fetched_at: string | null
+          last_http_status: number | null
+          last_modified: string | null
+          priority: number | null
+          products_extracted: number | null
+          retry_count: number | null
+          source_id: string | null
+          status: string | null
+          updated_at: string | null
+          url: string | null
+          url_type: string | null
+        }
+        Insert: {
+          content_hash?: string | null
+          created_at?: string | null
+          discovered_via?: string | null
+          documents_extracted?: number | null
+          error_message?: string | null
+          etag?: string | null
+          extraction_confidence?: number | null
+          id?: string | null
+          last_fetched_at?: string | null
+          last_http_status?: number | null
+          last_modified?: string | null
+          priority?: number | null
+          products_extracted?: number | null
+          retry_count?: number | null
+          source_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+          url?: string | null
+          url_type?: string | null
+        }
+        Update: {
+          content_hash?: string | null
+          created_at?: string | null
+          discovered_via?: string | null
+          documents_extracted?: number | null
+          error_message?: string | null
+          etag?: string | null
+          extraction_confidence?: number | null
+          id?: string | null
+          last_fetched_at?: string | null
+          last_http_status?: number | null
+          last_modified?: string | null
+          priority?: number | null
+          products_extracted?: number | null
+          retry_count?: number | null
+          source_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+          url?: string | null
+          url_type?: string | null
+        }
+        Relationships: []
+      }
       community_crawled_document_chunks: {
         Row: {
           chunk_index: number | null
