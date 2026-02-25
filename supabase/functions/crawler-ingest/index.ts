@@ -32,7 +32,9 @@ Deno.serve(async (req) => {
     return json({ error: "Unauthorized" }, 401);
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    db: { schema: 'community' },
+  });
 
   try {
     const body = await req.json();
@@ -67,7 +69,6 @@ async function upsertProduct(supabase: any, payload: any) {
     .from("manufacturers")
     .select("id")
     .eq("knx_manufacturer_id", manufacturerKnxId)
-    .schema("community")
     .single();
 
   if (mfrErr || !mfr) {
@@ -80,8 +81,7 @@ async function upsertProduct(supabase: any, payload: any) {
     const { data: existing } = await supabase
       .from("products")
       .select("*")
-      .eq("manufacturer_id", mfr.id)
-      .schema("community");
+      .eq("manufacturer_id", mfr.id);
 
     const match = (existing || []).find((p: any) =>
       p.order_number && p.order_number.replace(/[\s\-\.]/g, "").toUpperCase() === normalized
@@ -98,7 +98,7 @@ async function upsertProduct(supabase: any, payload: any) {
       updates.confidence_score = Math.min(1.0, (match.confidence_score || 0) + 0.1);
       if (source) updates.crawler_source_url = source;
 
-      await supabase.from("products").update(updates).eq("id", match.id).schema("community");
+      await supabase.from("products").update(updates).eq("id", match.id);
       return json({ id: match.id, action: "enriched" });
     }
   }
@@ -119,8 +119,7 @@ async function upsertProduct(supabase: any, payload: any) {
       confidence_score: confidence || 0.5,
       crawler_source_url: source || null,
       status: (confidence || 0) >= 0.7 ? "approved" : "pending_review",
-    })
-    .schema("community");
+    });
 
   if (insertErr) return json({ error: insertErr.message }, 500);
   return json({ id: productId, action: "created" });
@@ -134,7 +133,6 @@ async function createDocument(supabase: any, payload: any) {
     .from("crawled_documents")
     .select("id")
     .eq("sha256", sha256)
-    .schema("community")
     .single();
 
   if (existing) {
@@ -155,7 +153,6 @@ async function createDocument(supabase: any, payload: any) {
       language: language || null,
       doc_version: version || null,
     })
-    .schema("community")
     .select("id")
     .single();
 
@@ -181,16 +178,14 @@ async function uploadChunks(supabase: any, payload: any) {
 
   const { error } = await supabase
     .from("crawled_document_chunks")
-    .insert(rows)
-    .schema("community");
+    .insert(rows);
 
   if (error) return json({ error: error.message }, 500);
 
   await supabase
     .from("crawled_documents")
     .update({ chunk_count: chunks.length })
-    .eq("id", documentId)
-    .schema("community");
+    .eq("id", documentId);
 
   return json({ chunksCreated: chunks.length });
 }
@@ -199,8 +194,7 @@ async function uploadChunks(supabase: any, payload: any) {
 async function logRun(supabase: any, payload: any) {
   const { error } = await supabase
     .from("crawl_runs")
-    .insert(payload)
-    .schema("community");
+    .insert(payload);
 
   if (error) return json({ error: error.message }, 500);
   return json({ ok: true });
