@@ -324,7 +324,294 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      community_crawl_runs: {
+        Row: {
+          chunks_created: number | null
+          completed_at: string | null
+          documents_uploaded: number | null
+          error_summary: string | null
+          estimated_cost_eur: number | null
+          id: string | null
+          llm_tokens_used: number | null
+          n8n_execution_id: string | null
+          products_created: number | null
+          products_updated: number | null
+          source_id: string | null
+          started_at: string | null
+          status: string | null
+          urls_failed: number | null
+          urls_processed: number | null
+          urls_skipped: number | null
+          workflow_name: string | null
+        }
+        Insert: {
+          chunks_created?: number | null
+          completed_at?: string | null
+          documents_uploaded?: number | null
+          error_summary?: string | null
+          estimated_cost_eur?: number | null
+          id?: string | null
+          llm_tokens_used?: number | null
+          n8n_execution_id?: string | null
+          products_created?: number | null
+          products_updated?: number | null
+          source_id?: string | null
+          started_at?: string | null
+          status?: string | null
+          urls_failed?: number | null
+          urls_processed?: number | null
+          urls_skipped?: number | null
+          workflow_name?: string | null
+        }
+        Update: {
+          chunks_created?: number | null
+          completed_at?: string | null
+          documents_uploaded?: number | null
+          error_summary?: string | null
+          estimated_cost_eur?: number | null
+          id?: string | null
+          llm_tokens_used?: number | null
+          n8n_execution_id?: string | null
+          products_created?: number | null
+          products_updated?: number | null
+          source_id?: string | null
+          started_at?: string | null
+          status?: string | null
+          urls_failed?: number | null
+          urls_processed?: number | null
+          urls_skipped?: number | null
+          workflow_name?: string | null
+        }
+        Relationships: []
+      }
+      community_crawled_document_chunks: {
+        Row: {
+          chunk_index: number | null
+          content: string | null
+          created_at: string | null
+          document_id: string | null
+          headings: string[] | null
+          id: string | null
+          page_number: number | null
+          token_count: number | null
+        }
+        Insert: {
+          chunk_index?: number | null
+          content?: string | null
+          created_at?: string | null
+          document_id?: string | null
+          headings?: string[] | null
+          id?: string | null
+          page_number?: number | null
+          token_count?: number | null
+        }
+        Update: {
+          chunk_index?: number | null
+          content?: string | null
+          created_at?: string | null
+          document_id?: string | null
+          headings?: string[] | null
+          id?: string | null
+          page_number?: number | null
+          token_count?: number | null
+        }
+        Relationships: []
+      }
+      community_crawled_documents: {
+        Row: {
+          applicable_product_ids: string[] | null
+          chunk_count: number | null
+          created_at: string | null
+          doc_version: string | null
+          document_type: string | null
+          extraction_confidence: number | null
+          filename: string | null
+          id: string | null
+          language: string | null
+          llm_tokens_used: number | null
+          page_count: number | null
+          publication_date: string | null
+          sha256: string | null
+          size_bytes: number | null
+          source_id: string | null
+          source_url: string | null
+          storage_key: string | null
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          applicable_product_ids?: string[] | null
+          chunk_count?: number | null
+          created_at?: string | null
+          doc_version?: string | null
+          document_type?: string | null
+          extraction_confidence?: number | null
+          filename?: string | null
+          id?: string | null
+          language?: string | null
+          llm_tokens_used?: number | null
+          page_count?: number | null
+          publication_date?: string | null
+          sha256?: string | null
+          size_bytes?: number | null
+          source_id?: string | null
+          source_url?: string | null
+          storage_key?: string | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          applicable_product_ids?: string[] | null
+          chunk_count?: number | null
+          created_at?: string | null
+          doc_version?: string | null
+          document_type?: string | null
+          extraction_confidence?: number | null
+          filename?: string | null
+          id?: string | null
+          language?: string | null
+          llm_tokens_used?: number | null
+          page_count?: number | null
+          publication_date?: string | null
+          sha256?: string | null
+          size_bytes?: number | null
+          source_id?: string | null
+          source_url?: string | null
+          storage_key?: string | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      community_manufacturers: {
+        Row: {
+          application_program_count: number | null
+          confidence_score: number | null
+          country: string | null
+          created_at: string | null
+          hex_code: string | null
+          id: string | null
+          knx_manufacturer_id: string | null
+          name: string | null
+          product_count: number | null
+          short_name: string | null
+          source_count: number | null
+          status: string | null
+          updated_at: string | null
+          website_url: string | null
+        }
+        Insert: {
+          application_program_count?: number | null
+          confidence_score?: number | null
+          country?: string | null
+          created_at?: string | null
+          hex_code?: string | null
+          id?: string | null
+          knx_manufacturer_id?: string | null
+          name?: string | null
+          product_count?: number | null
+          short_name?: string | null
+          source_count?: number | null
+          status?: string | null
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          application_program_count?: number | null
+          confidence_score?: number | null
+          country?: string | null
+          created_at?: string | null
+          hex_code?: string | null
+          id?: string | null
+          knx_manufacturer_id?: string | null
+          name?: string | null
+          product_count?: number | null
+          short_name?: string | null
+          source_count?: number | null
+          status?: string | null
+          updated_at?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      community_products: {
+        Row: {
+          bus_current_ma: number | null
+          category: string | null
+          confidence_score: number | null
+          crawler_source_id: string | null
+          crawler_source_url: string | null
+          created_at: string | null
+          description: string | null
+          ean_code: string | null
+          id: string | null
+          image_url: string | null
+          is_coupler: boolean | null
+          is_ip_device: boolean | null
+          is_power_supply: boolean | null
+          knx_hardware_id: string | null
+          knx_product_id: string | null
+          manufacturer_id: string | null
+          medium_types: string[] | null
+          name: string | null
+          order_number: string | null
+          source_count: number | null
+          specifications: Json | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          bus_current_ma?: number | null
+          category?: string | null
+          confidence_score?: number | null
+          crawler_source_id?: string | null
+          crawler_source_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          ean_code?: string | null
+          id?: string | null
+          image_url?: string | null
+          is_coupler?: boolean | null
+          is_ip_device?: boolean | null
+          is_power_supply?: boolean | null
+          knx_hardware_id?: string | null
+          knx_product_id?: string | null
+          manufacturer_id?: string | null
+          medium_types?: string[] | null
+          name?: string | null
+          order_number?: string | null
+          source_count?: number | null
+          specifications?: Json | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          bus_current_ma?: number | null
+          category?: string | null
+          confidence_score?: number | null
+          crawler_source_id?: string | null
+          crawler_source_url?: string | null
+          created_at?: string | null
+          description?: string | null
+          ean_code?: string | null
+          id?: string | null
+          image_url?: string | null
+          is_coupler?: boolean | null
+          is_ip_device?: boolean | null
+          is_power_supply?: boolean | null
+          knx_hardware_id?: string | null
+          knx_product_id?: string | null
+          manufacturer_id?: string | null
+          medium_types?: string[] | null
+          name?: string | null
+          order_number?: string | null
+          source_count?: number | null
+          specifications?: Json | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
