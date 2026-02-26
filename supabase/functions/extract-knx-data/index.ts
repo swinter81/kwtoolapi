@@ -1,8 +1,19 @@
-// v1 - KNX data extraction via Claude with PDF
+// v2 - KNX data extraction via Claude with PDF + intelligent page extraction
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib';
 
 const CRAWLER_SERVICE_KEY = Deno.env.get("CRAWLER_SERVICE_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
+
+function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 32768;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...Array.from(chunk));
+  }
+  return btoa(binary);
+}
 
 serve(async (req) => {
   console.log('extract-knx-data called', {
@@ -35,23 +46,107 @@ serve(async (req) => {
     }
 
     const pdfBytes = new Uint8Array(await pdfResponse.arrayBuffer());
-    
-    if (pdfBytes.length > 5 * 1024 * 1024) {
-      return new Response(JSON.stringify({ 
-        error: 'PDF too large (>5MB). Likely a catalog, not a product datasheet.',
-        size: pdfBytes.length,
-      }), { status: 400 });
+
+    // 2. Intelligent page extraction for large PDFs
+    let processedPdfBytes = pdfBytes;
+    let totalPages = 0;
+
+    try {
+      const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+      totalPages = pdfDoc.getPageCount();
+      console.log(`PDF has ${totalPages} pages, size: ${pdfBytes.length} bytes`);
+
+      if (totalPages > 100) {
+        // Sample pages: first 5 + middle 3 for language detection
+        const tocPdf = await PDFDocument.create();
+        const samplePages: number[] = [];
+        for (let i = 0; i < Math.min(5, totalPages); i++) samplePages.push(i);
+        const mid = Math.floor(totalPages / 2);
+        for (let i = mid; i < Math.min(mid + 3, totalPages); i++) {
+          if (!samplePages.includes(i)) samplePages.push(i);
+        }
+
+        const copiedPages = await tocPdf.copyPages(pdfDoc, samplePages);
+        for (const page of copiedPages) tocPdf.addPage(page);
+        const tocBase64 = toBase64(new Uint8Array(await tocPdf.save()));
+
+        // Ask Claude to identify the English page range
+        const pageDetectResponse = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'anthropic-version': '2023-06-01',
+            'x-api-key': ANTHROPIC_API_KEY,
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-5-20250929',
+            max_tokens: 300,
+            messages: [{
+              role: 'user',
+              content: [
+                {
+                  type: 'document',
+                  source: { type: 'base64', media_type: 'application/pdf', data: tocBase64 },
+                },
+                {
+                  type: 'text',
+                  text: `This PDF has ${totalPages} pages total. It is a KNX product technical documentation that likely contains the same content in multiple languages (e.g., German first, then English, then French, etc.).
+
+Look at the sample pages I've provided (pages from the beginning and middle of the document). Based on the table of contents, headers, or language patterns you see, tell me which page range contains the ENGLISH version of the documentation.
+
+Respond with ONLY valid JSON (no markdown):
+{"startPage": 1, "endPage": 50, "language": "en", "confidence": 0.8}
+
+If you cannot determine the page range, estimate based on the total page count divided by the number of languages you detect. German usually comes first, English second.`
+                }
+              ]
+            }]
+          }),
+        });
+
+        if (pageDetectResponse.ok) {
+          const detectData = await pageDetectResponse.json();
+          const detectText = (detectData.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+          const cleaned = detectText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+          try {
+            const pageRange = JSON.parse(cleaned);
+            const start = Math.max(0, (pageRange.startPage || 1) - 1);
+            const end = Math.min(totalPages, pageRange.endPage || 100);
+
+            console.log(`Detected English section: pages ${start + 1}-${end} (confidence: ${pageRange.confidence})`);
+
+            const engPdf = await PDFDocument.create();
+            const pageIndices = Array.from({ length: end - start }, (_, i) => start + i);
+            const engPages = await engPdf.copyPages(pdfDoc, pageIndices);
+            for (const page of engPages) engPdf.addPage(page);
+            processedPdfBytes = new Uint8Array(await engPdf.save());
+
+            console.log(`Extracted ${pageIndices.length} English pages, new size: ${processedPdfBytes.length} bytes`);
+
+            if (pageIndices.length > 100) {
+              const trimPdf = await PDFDocument.create();
+              const trimPages = await trimPdf.copyPages(engPdf, Array.from({ length: 95 }, (_, i) => i));
+              for (const page of trimPages) trimPdf.addPage(page);
+              processedPdfBytes = new Uint8Array(await trimPdf.save());
+              console.log('Trimmed English section to 95 pages');
+            }
+          } catch (parseErr) {
+            console.error('Failed to parse page range:', parseErr.message);
+            const fallbackPdf = await PDFDocument.create();
+            const fallbackPages = await fallbackPdf.copyPages(pdfDoc, Array.from({ length: Math.min(95, totalPages) }, (_, i) => i));
+            for (const page of fallbackPages) fallbackPdf.addPage(page);
+            processedPdfBytes = new Uint8Array(await fallbackPdf.save());
+            console.log('Fallback: using first 95 pages');
+          }
+        }
+      }
+    } catch (pdfErr) {
+      console.error('PDF page extraction error:', pdfErr.message);
     }
 
-    // 2. Convert to base64
-    let binary = "";
-    const chunkSize = 32768;
-    for (let i = 0; i < pdfBytes.length; i += chunkSize) {
-      const chunk = pdfBytes.subarray(i, i + chunkSize);
-      const arr = Array.from(chunk);
-      binary += String.fromCharCode(...arr);
-    }
-    const pdfBase64 = btoa(binary);
+    // 3. Convert to base64
+    const pdfBase64 = toBase64(processedPdfBytes);
 
     // 3. Build Claude prompt
     const prompt = `You are a KNX building automation expert. Extract ALL KNX-compliant product data from this PDF datasheet.
