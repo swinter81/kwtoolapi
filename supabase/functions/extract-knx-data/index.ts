@@ -91,14 +91,21 @@ serve(async (req) => {
                 },
                 {
                   type: 'text',
-                  text: `This PDF has ${totalPages} pages total. It is a KNX product technical documentation that likely contains the same content in multiple languages (e.g., German first, then English, then French, etc.).
+                  text: `This PDF has ${totalPages} pages total. It is a KNX product technical documentation that contains the same content repeated in multiple languages.
 
-Look at the sample pages I've provided (pages from the beginning and middle of the document). Based on the table of contents, headers, or language patterns you see, tell me which page range contains the ENGLISH version of the documentation.
+Look at the sample pages. Identify:
+1. How many languages are in this document
+2. The page range for the ENGLISH section only
 
-Respond with ONLY valid JSON (no markdown):
-{"startPage": 1, "endPage": 50, "language": "en", "confidence": 0.8}
+Typical structure: German first (pages 1-N), then English (pages N+1 to 2N), then French, etc. Each language section is roughly ${Math.floor(totalPages / 3)} to ${Math.floor(totalPages / 2)} pages.
 
-If you cannot determine the page range, estimate based on the total page count divided by the number of languages you detect. German usually comes first, English second.`
+If you see a table of contents, use it to determine exact page ranges.
+If you cannot determine exactly, estimate: startPage = ${Math.floor(totalPages / 3) + 1}, endPage = ${Math.floor(totalPages * 2 / 3)}.
+
+IMPORTANT: The English section should be no more than 60 pages. If your estimate is larger, narrow it to the most important pages (communication objects tables, parameters, technical data).
+
+Respond with ONLY valid JSON:
+{"startPage": 1, "endPage": 50, "language": "en", "estimatedLanguages": 3, "confidence": 0.8}`
                 }
               ]
             }]
@@ -117,21 +124,21 @@ If you cannot determine the page range, estimate based on the total page count d
 
             console.log(`Detected English section: pages ${start + 1}-${end} (confidence: ${pageRange.confidence})`);
 
+            // Hard cap at 60 pages to stay under token limit
+            const maxPages = 60;
+            let adjustedEnd = end;
+            if ((end - start) > maxPages) {
+              adjustedEnd = start + maxPages;
+              console.log(`Capped English section from ${end - start} to ${maxPages} pages`);
+            }
+            const pageIndices = Array.from({ length: adjustedEnd - start }, (_, i) => start + i);
+
             const engPdf = await PDFDocument.create();
-            const pageIndices = Array.from({ length: end - start }, (_, i) => start + i);
             const engPages = await engPdf.copyPages(pdfDoc, pageIndices);
             for (const page of engPages) engPdf.addPage(page);
             processedPdfBytes = new Uint8Array(await engPdf.save());
 
             console.log(`Extracted ${pageIndices.length} English pages, new size: ${processedPdfBytes.length} bytes`);
-
-            if (pageIndices.length > 100) {
-              const trimPdf = await PDFDocument.create();
-              const trimPages = await trimPdf.copyPages(engPdf, Array.from({ length: 95 }, (_, i) => i));
-              for (const page of trimPages) trimPdf.addPage(page);
-              processedPdfBytes = new Uint8Array(await trimPdf.save());
-              console.log('Trimmed English section to 95 pages');
-            }
           } catch (parseErr) {
             console.error('Failed to parse page range:', parseErr.message);
             const fallbackPdf = await PDFDocument.create();
