@@ -1,4 +1,4 @@
-// v2 - KNX data extraction via Claude with PDF + intelligent page extraction
+// v3 - Phase 1: Download PDF, extract English pages, fire-and-forget to extract-knx-objects
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1';
 
@@ -19,7 +19,6 @@ serve(async (req) => {
   console.log('extract-knx-data called', {
     hasAnthropicKey: !!ANTHROPIC_API_KEY,
     hasCrawlerKey: !!CRAWLER_SERVICE_KEY,
-    hasServiceRole: !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
   });
 
   try {
@@ -37,6 +36,7 @@ serve(async (req) => {
     }
 
     // 1. Download the PDF
+    console.log('Downloading PDF...', new Date().toISOString());
     const pdfResponse = await fetch(pdf_url, {
       headers: { "User-Agent": "KNXforgeBot/1.0" },
     });
@@ -50,11 +50,13 @@ serve(async (req) => {
     // 2. Intelligent page extraction for large PDFs
     let processedPdfBytes = pdfBytes;
     let totalPages = 0;
+    let extractedPageCount = 0;
 
     try {
       console.log('pdf-lib loaded, attempting to parse PDF...');
       const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
       totalPages = pdfDoc.getPageCount();
+      extractedPageCount = totalPages;
       console.log(`PDF has ${totalPages} pages, size: ${pdfBytes.length} bytes`);
 
       if (totalPages > 100) {
@@ -137,14 +139,17 @@ Respond with ONLY valid JSON:
             const engPages = await engPdf.copyPages(pdfDoc, pageIndices);
             for (const page of engPages) engPdf.addPage(page);
             processedPdfBytes = new Uint8Array(await engPdf.save());
+            extractedPageCount = pageIndices.length;
 
-            console.log(`Extracted ${pageIndices.length} English pages, new size: ${processedPdfBytes.length} bytes`);
+            console.log(`Extracted ${extractedPageCount} English pages, new size: ${processedPdfBytes.length} bytes`);
           } catch (parseErr) {
             console.error('Failed to parse page range:', parseErr.message);
             const fallbackPdf = await PDFDocument.create();
-            const fallbackPages = await fallbackPdf.copyPages(pdfDoc, Array.from({ length: Math.min(95, totalPages) }, (_, i) => i));
+            const fallbackCount = Math.min(95, totalPages);
+            const fallbackPages = await fallbackPdf.copyPages(pdfDoc, Array.from({ length: fallbackCount }, (_, i) => i));
             for (const page of fallbackPages) fallbackPdf.addPage(page);
             processedPdfBytes = new Uint8Array(await fallbackPdf.save());
+            extractedPageCount = fallbackCount;
             console.log('Fallback: using first 95 pages');
           }
         }
@@ -153,270 +158,38 @@ Respond with ONLY valid JSON:
       console.error('PDF page extraction error:', pdfErr.message);
     }
 
-    // 3. Convert to base64
+    // 3. Convert trimmed PDF to base64
     const pdfBase64 = toBase64(processedPdfBytes);
+    console.log(`PDF base64 ready, length: ${pdfBase64.length} chars`, new Date().toISOString());
 
-    // 3. Build Claude prompt
-    const prompt = `You are a KNX building automation expert. Extract ALL KNX-compliant product data from this PDF datasheet.
-
-Product: ${product_name || "Unknown"}
-Order Number: ${order_number || "Unknown"}
-Manufacturer: ${manufacturer || "Unknown"}
-Category: ${category || "Unknown"}
-
-Analyze the PDF and extract EVERY detail. Respond with ONLY valid JSON (no markdown, no code fences):
-{
-  "communicationObjects": [
-    {
-      "objectNumber": 0,
-      "name": "Switching",
-      "functionText": "Switch output on/off",
-      "channelNumber": 1,
-      "channelName": "Output A",
-      "functionalBlock": "Switching",
-      "dptId": "1.001",
-      "dptName": "DPT_Switch",
-      "dptSizeBits": 1,
-      "dptUnit": null,
-      "readFlag": true,
-      "writeFlag": true,
-      "communicateFlag": true,
-      "transmitFlag": false,
-      "updateFlag": true,
-      "readOnInitFlag": false,
-      "priority": "low",
-      "description": "Switches output on or off"
-    }
-  ],
-  "parameters": [
-    {
-      "paramName": "Switch-on delay",
-      "paramGroup": "Channel A",
-      "paramSubgroup": "Switching behavior",
-      "channelNumber": 1,
-      "channelName": "Output A",
-      "paramType": "enum",
-      "defaultValue": "0",
-      "valueMin": null,
-      "valueMax": null,
-      "valueUnit": "s",
-      "stepSize": null,
-      "enumValues": [{"value": "0", "label": "Disabled"}, {"value": "1", "label": "1s"}],
-      "description": "Delay before switching on"
-    }
-  ],
-  "functionalBlocks": [
-    {
-      "blockName": "Switch Output",
-      "blockType": "switching",
-      "channelCount": 8,
-      "description": "8 independent switching outputs"
-    }
-  ],
-  "technicalSpecifications": [
-    {
-      "specCategory": "electrical",
-      "specName": "Operating voltage",
-      "specValue": "AC 230 V",
-      "specUnit": "V",
-      "specValueNumeric": 230
-    }
-  ],
-  "extractionConfidence": 0.9
-}
-
-Rules:
-- Extract ALL communication objects listed in the PDF for ALL channels
-- Extract ALL parameters from the PDF
-- Use correct KNX DPTs (1.001=Switch, 1.008=Up/Down, 3.007=DimmingControl, 5.001=Percentage, 9.001=Temperature, etc.)
-- Spec categories: electrical, mechanical, environmental, knx_bus, certification
-- For multi-channel devices, include objects/params for EACH channel
-- Set flags correctly based on the PDF tables
-- Only extract what is actually in the PDF, do NOT invent data`;
-
-    // 4. Call Claude API with PDF
-    console.log('Starting Claude extraction...', new Date().toISOString());
-    const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
+    // 4. Fire-and-forget call to extract-knx-objects for Claude extraction + DB storage
+    fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/extract-knx-objects`, {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "anthropic-version": "2023-06-01",
-        "x-api-key": ANTHROPIC_API_KEY,
+        'Authorization': `Bearer ${CRAWLER_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
-        max_tokens: 16384,
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: {
-                type: "base64",
-                media_type: "application/pdf",
-                data: pdfBase64,
-              },
-            },
-            {
-              type: "text",
-              text: prompt,
-            },
-          ],
-        }],
+        pdf_base64: pdfBase64,
+        product_name,
+        order_number,
+        manufacturer,
+        category,
       }),
-    });
+    }).catch(e => console.error('extract-knx-objects call failed:', e.message));
 
-    if (!claudeResponse.ok) {
-      const errText = await claudeResponse.text();
-      return new Response(JSON.stringify({ error: `Claude API error: ${claudeResponse.status} ${errText}` }), { status: 500 });
-    }
-
-    const claudeData = await claudeResponse.json();
-
-    // 5. Parse Claude's response
-    let text = "";
-    if (claudeData.content && Array.isArray(claudeData.content)) {
-      text = claudeData.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
-    }
-
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    
-    let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch (e) {
-      return new Response(JSON.stringify({ 
-        error: "Failed to parse Claude response",
-        rawPreview: cleaned.slice(0, 1000),
-      }), { status: 500 });
-    }
-
-    // 6. Store extracted data in the database
-    console.log('Claude extraction complete, storing data...', new Date().toISOString());
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
-    const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-
-    const { data: products } = await db.from('community_products')
-      .select('id')
-      .ilike('order_number', `%${order_number}%`)
-      .limit(1);
-
-    const productId = products?.[0]?.id;
-    let storedCommunicationObjects = 0;
-    let storedParameters = 0;
-    let storedFunctionalBlocks = 0;
-    let storedTechnicalSpecifications = 0;
-
-    if (productId) {
-      // Batch store communication objects
-      if (parsed.communicationObjects?.length) {
-        const rows = parsed.communicationObjects.map((obj: any) => ({
-          product_id: productId,
-          object_number: obj.objectNumber,
-          name: obj.name,
-          function_text: obj.functionText || null,
-          channel_number: obj.channelNumber || null,
-          channel_name: obj.channelName || null,
-          functional_block: obj.functionalBlock || null,
-          dpt_id: obj.dptId || null,
-          dpt_name: obj.dptName || null,
-          dpt_size_bits: obj.dptSizeBits || null,
-          dpt_unit: obj.dptUnit || null,
-          read_flag: obj.readFlag || false,
-          write_flag: obj.writeFlag || false,
-          communicate_flag: obj.communicateFlag || false,
-          transmit_flag: obj.transmitFlag || false,
-          update_flag: obj.updateFlag || false,
-          read_on_init_flag: obj.readOnInitFlag || false,
-          priority: obj.priority || 'low',
-          description: obj.description || null,
-          extraction_confidence: parsed.extractionConfidence || 0.7,
-        }));
-        const { error } = await db.from('community_communication_objects').insert(rows);
-        if (error) console.error('Failed to store comm objects:', error.message);
-        else { storedCommunicationObjects = rows.length; console.log(`Stored ${rows.length} communication objects`); }
-      }
-
-      // Batch store parameters
-      if (parsed.parameters?.length) {
-        const rows = parsed.parameters.map((param: any) => ({
-          product_id: productId,
-          param_name: param.paramName,
-          param_group: param.paramGroup || null,
-          param_subgroup: param.paramSubgroup || null,
-          channel_number: param.channelNumber || null,
-          channel_name: param.channelName || null,
-          param_type: param.paramType || 'text',
-          default_value: param.defaultValue != null ? String(param.defaultValue) : null,
-          value_min: param.valueMin != null ? String(param.valueMin) : null,
-          value_max: param.valueMax != null ? String(param.valueMax) : null,
-          value_unit: param.valueUnit || null,
-          step_size: param.stepSize != null ? String(param.stepSize) : null,
-          enum_values: param.enumValues ? JSON.stringify(param.enumValues) : null,
-          description: param.description || null,
-          extraction_confidence: parsed.extractionConfidence || 0.7,
-        }));
-        const { error } = await db.from('community_parameters').insert(rows);
-        if (error) console.error('Failed to store parameters:', error.message);
-        else { storedParameters = rows.length; console.log(`Stored ${rows.length} parameters`); }
-      }
-
-      // Batch store functional blocks
-      if (parsed.functionalBlocks?.length) {
-        const rows = parsed.functionalBlocks.map((block: any) => ({
-          product_id: productId,
-          block_name: block.blockName,
-          block_type: block.blockType || null,
-          channel_count: block.channelCount || null,
-          description: block.description || null,
-          extraction_confidence: parsed.extractionConfidence || 0.7,
-        }));
-        const { error } = await db.from('community_functional_blocks').insert(rows);
-        if (error) console.error('Failed to store functional blocks:', error.message);
-        else { storedFunctionalBlocks = rows.length; console.log(`Stored ${rows.length} functional blocks`); }
-      }
-
-      // Batch store technical specifications
-      if (parsed.technicalSpecifications?.length) {
-        const rows = parsed.technicalSpecifications.map((spec: any) => ({
-          product_id: productId,
-          spec_category: spec.specCategory,
-          spec_name: spec.specName,
-          spec_value: spec.specValue,
-          spec_unit: spec.specUnit || null,
-          spec_value_numeric: spec.specValueNumeric || null,
-          extraction_confidence: parsed.extractionConfidence || 0.7,
-        }));
-        const { error } = await db.from('community_technical_specifications').insert(rows);
-        if (error) console.error('Failed to store tech specs:', error.message);
-        else { storedTechnicalSpecifications = rows.length; console.log(`Stored ${rows.length} technical specifications`); }
-      }
-
-      console.log('Database storage complete', new Date().toISOString());
-    }
-
-    // 7. Return extracted data with storage counts
+    // 5. Return immediately
     return new Response(JSON.stringify({
-      action: "extracted",
+      action: 'processing',
+      message: 'PDF downloaded and trimmed. KNX data extraction started in background.',
       product: product_name,
       orderNumber: order_number,
-      productId: productId || null,
-      communicationObjects: parsed.communicationObjects || [],
-      parameters: parsed.parameters || [],
-      functionalBlocks: parsed.functionalBlocks || [],
-      technicalSpecifications: parsed.technicalSpecifications || [],
-      extractionConfidence: parsed.extractionConfidence || 0,
-      storedCommunicationObjects,
-      storedParameters,
-      storedFunctionalBlocks,
-      storedTechnicalSpecifications,
-      usage: claudeData.usage || {},
+      totalPages,
+      englishPages: extractedPageCount,
+      pdfSizeBytes: processedPdfBytes.length,
     }), {
       headers: { "Content-Type": "application/json" },
     });
-
-
-
 
   } catch (err) {
     console.error('Fatal error:', err.message, err.stack);
