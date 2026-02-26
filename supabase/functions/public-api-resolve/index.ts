@@ -338,6 +338,9 @@ async function claudeInterpret(db: any, manufacturer: any, segments: any) {
   try {
     const prompt = `You are a KNX building automation expert. Identify this KNX product from its ETS identifier.
 
+IMPORTANT: This product is made by ${manufacturer.name} (${manufacturer.shortName}).
+Only suggest products from this specific manufacturer.
+
 KNX ID: ${segments.raw}
 Manufacturer: ${manufacturer.name} (${manufacturer.shortName}, ${manufacturer.knxManufacturerId})
 Parsed segments:
@@ -345,22 +348,19 @@ Parsed segments:
 - Program Number: ${segments.programNumber || 'unknown'}
 - Program Version: ${segments.programVersion || 'unknown'}
 - Order Reference: ${segments.orderRef || 'none'}
+- Search terms extracted: ${segments.searchTerms.join(', ')}
+
+For many manufacturers, the program number or hardware ID contains the article/order number.
+For example, Theben uses their article numbers (like 4940285) directly as program IDs.
 
 Based on your knowledge of ${manufacturer.name} KNX products, identify:
-1. The product name
-2. The order number / article number
+1. The exact product name
+2. The order/article number
 3. The product category
 4. A brief description
 
 Respond with ONLY valid JSON (no markdown):
-{
-  "productName": "Switching actuator 16fold/shutter actuator 8fold 16A",
-  "orderNumber": "1038 00",
-  "category": "switch actuator",
-  "description": "Combined switching and shutter actuator, 16 switching channels or 8 shutter channels, 16A, DIN rail mounting",
-  "confidence": 0.9,
-  "searchTerms": ["1038 00", "switching actuator 16fold"]
-}
+{"productName": "DM 8-2 T KNX", "orderNumber": "4940285", "category": "dimming actuator", "description": "8-fold universal dimming actuator, 200W per channel, for LED, halogen and incandescent lamps", "confidence": 0.9, "searchTerms": ["4940285", "DM 8-2 T KNX"]}
 
 If you cannot identify the product, respond with:
 {"productName": null, "orderNumber": null, "confidence": 0}`;
