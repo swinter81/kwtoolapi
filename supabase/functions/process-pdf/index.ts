@@ -97,58 +97,8 @@ serve(async (req) => {
         }), { status: 500 });
       }
 
-      // 6. Extract text from PDF (basic extraction)
-      let extractedText = "";
-      try {
-        const decoder = new TextDecoder("utf-8", { fatal: false });
-        const rawText = decoder.decode(pdfBytes);
-        
-        // Extract text between BT and ET markers (PDF text objects)
-        const textMatches = rawText.match(/BT[\s\S]*?ET/g) || [];
-        const textParts: string[] = [];
-        
-        for (const match of textMatches) {
-          const strings = match.match(/\(([^)]*)\)/g) || [];
-          for (const s of strings) {
-            const clean = s.slice(1, -1)
-              .replace(/\\n/g, "\n")
-              .replace(/\\r/g, "")
-              .replace(/\\\(/g, "(")
-              .replace(/\\\)/g, ")")
-              .replace(/\\\\/g, "\\");
-            if (clean.trim().length > 0) {
-              textParts.push(clean);
-            }
-          }
-        }
-        
-        extractedText = textParts.join(" ").replace(/\s+/g, " ").trim();
-      } catch (e) {
-        extractedText = "";
-      }
-
-      // 7. If basic extraction failed, try to get any readable text
-      if (extractedText.length < 50) {
-        try {
-          const decoder = new TextDecoder("utf-8", { fatal: false });
-          const rawText = decoder.decode(pdfBytes);
-          const readable = rawText.match(/[\x20-\x7E]{4,}/g) || [];
-          extractedText = readable
-            .filter(s => !s.match(/^[\/\[\]{}()<>%]+$/) && s.length > 10)
-            .join(" ")
-            .slice(0, 30000);
-        } catch (e) {
-          extractedText = "[PDF text extraction failed]";
-        }
-      }
-
-      // Truncate if too long
-      if (extractedText.length > 30000) {
-        extractedText = extractedText.slice(0, 27000) + "\n[...truncated...]\n" + extractedText.slice(-3000);
-      }
-
-      // 8. Estimate page count (rough: ~3000 chars per page)
-      const pageCount = Math.max(1, Math.round(extractedText.length / 3000));
+      // 6. Skip text extraction — will be done later with a dedicated tool
+      const pageCount = 0;
 
       // 9. Store document metadata
       const docId = crypto.randomUUID();
@@ -172,32 +122,7 @@ serve(async (req) => {
         }), { status: 500 });
       }
 
-      // 10. Store text as chunks (~2000 chars each)
-      const chunkSize = 2000;
-      const chunks: { document_id: string; chunk_index: number; content: string; token_count: number }[] = [];
-      
-      for (let i = 0; i < extractedText.length; i += chunkSize) {
-        const chunkText = extractedText.slice(i, i + chunkSize);
-        chunks.push({
-          document_id: docId,
-          chunk_index: chunks.length,
-          content: chunkText,
-          token_count: Math.round(chunkText.length / 4),
-        });
-      }
-
-      if (chunks.length > 0) {
-        await supabase
-          .from("community_crawled_document_chunks")
-          .insert(chunks);
-        
-        await supabase
-          .from("community_crawled_documents")
-          .update({ chunk_count: chunks.length })
-          .eq("id", docId);
-      }
-
-      // 11. Update crawl_url status if provided
+      // 10. Update crawl_url status if provided
       if (crawl_url_id) {
         await supabase
           .from("community_crawl_urls")
@@ -216,10 +141,9 @@ serve(async (req) => {
         sha256,
         size_bytes: sizeBytes,
         page_count: pageCount,
-        text_length: extractedText.length,
-        chunk_count: chunks.length,
+        text_length: 0,
+        chunk_count: 0,
         storage_path: storagePath,
-        extracted_text_preview: extractedText.slice(0, 500),
       }));
 
     } catch (err) {
