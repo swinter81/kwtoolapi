@@ -5,20 +5,26 @@ const CRAWLER_SERVICE_KEY = Deno.env.get("CRAWLER_SERVICE_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 
 serve(async (req) => {
-  const authHeader = req.headers.get("Authorization") || "";
-  const token = authHeader.replace("Bearer ", "");
-  if (token !== CRAWLER_SERVICE_KEY) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
-  }
-
-  const body = await req.json();
-  const { pdf_url, product_name, order_number, manufacturer, category } = body;
-
-  if (!pdf_url) {
-    return new Response(JSON.stringify({ error: "pdf_url is required" }), { status: 400 });
-  }
+  console.log('extract-knx-data called', {
+    hasAnthropicKey: !!ANTHROPIC_API_KEY,
+    hasCrawlerKey: !!CRAWLER_SERVICE_KEY,
+    hasServiceRole: !!Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'),
+  });
 
   try {
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.replace("Bearer ", "");
+    if (token !== CRAWLER_SERVICE_KEY) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    }
+
+    const body = await req.json();
+    const { pdf_url, product_name, order_number, manufacturer, category } = body;
+
+    if (!pdf_url) {
+      return new Response(JSON.stringify({ error: "pdf_url is required" }), { status: 400 });
+    }
+
     // 1. Download the PDF
     const pdfResponse = await fetch(pdf_url, {
       headers: { "User-Agent": "KNXforgeBot/1.0" },
@@ -291,7 +297,11 @@ Rules:
       headers: { "Content-Type": "application/json" },
     });
 
+
+
+
   } catch (err) {
-    return new Response(JSON.stringify({ error: `Processing failed: ${err.message}` }), { status: 500 });
+    console.error('Fatal error:', err.message, err.stack);
+    return new Response(JSON.stringify({ error: `Fatal error: ${err.message}` }), { status: 500 });
   }
 });
