@@ -235,6 +235,7 @@ Rules:
 - Only extract what is actually in the PDF, do NOT invent data`;
 
     // 4. Call Claude API with PDF
+    console.log('Starting Claude extraction...', new Date().toISOString());
     const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -291,6 +292,7 @@ Rules:
     }
 
     // 6. Store extracted data in the database
+    console.log('Claude extraction complete, storing data...', new Date().toISOString());
     const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
     const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
@@ -306,9 +308,9 @@ Rules:
     let storedTechnicalSpecifications = 0;
 
     if (productId) {
-      // Store communication objects
-      for (const obj of (parsed.communicationObjects || [])) {
-        const { error } = await db.from('community_communication_objects').insert({
+      // Batch store communication objects
+      if (parsed.communicationObjects?.length) {
+        const rows = parsed.communicationObjects.map((obj: any) => ({
           product_id: productId,
           object_number: obj.objectNumber,
           name: obj.name,
@@ -329,13 +331,15 @@ Rules:
           priority: obj.priority || 'low',
           description: obj.description || null,
           extraction_confidence: parsed.extractionConfidence || 0.7,
-        });
-        if (!error) storedCommunicationObjects++;
+        }));
+        const { error } = await db.from('community_communication_objects').insert(rows);
+        if (error) console.error('Failed to store comm objects:', error.message);
+        else { storedCommunicationObjects = rows.length; console.log(`Stored ${rows.length} communication objects`); }
       }
 
-      // Store parameters
-      for (const param of (parsed.parameters || [])) {
-        const { error } = await db.from('community_parameters').insert({
+      // Batch store parameters
+      if (parsed.parameters?.length) {
+        const rows = parsed.parameters.map((param: any) => ({
           product_id: productId,
           param_name: param.paramName,
           param_group: param.paramGroup || null,
@@ -351,26 +355,30 @@ Rules:
           enum_values: param.enumValues ? JSON.stringify(param.enumValues) : null,
           description: param.description || null,
           extraction_confidence: parsed.extractionConfidence || 0.7,
-        });
-        if (!error) storedParameters++;
+        }));
+        const { error } = await db.from('community_parameters').insert(rows);
+        if (error) console.error('Failed to store parameters:', error.message);
+        else { storedParameters = rows.length; console.log(`Stored ${rows.length} parameters`); }
       }
 
-      // Store functional blocks
-      for (const block of (parsed.functionalBlocks || [])) {
-        const { error } = await db.from('community_functional_blocks').insert({
+      // Batch store functional blocks
+      if (parsed.functionalBlocks?.length) {
+        const rows = parsed.functionalBlocks.map((block: any) => ({
           product_id: productId,
           block_name: block.blockName,
           block_type: block.blockType || null,
           channel_count: block.channelCount || null,
           description: block.description || null,
           extraction_confidence: parsed.extractionConfidence || 0.7,
-        });
-        if (!error) storedFunctionalBlocks++;
+        }));
+        const { error } = await db.from('community_functional_blocks').insert(rows);
+        if (error) console.error('Failed to store functional blocks:', error.message);
+        else { storedFunctionalBlocks = rows.length; console.log(`Stored ${rows.length} functional blocks`); }
       }
 
-      // Store technical specifications
-      for (const spec of (parsed.technicalSpecifications || [])) {
-        const { error } = await db.from('community_technical_specifications').insert({
+      // Batch store technical specifications
+      if (parsed.technicalSpecifications?.length) {
+        const rows = parsed.technicalSpecifications.map((spec: any) => ({
           product_id: productId,
           spec_category: spec.specCategory,
           spec_name: spec.specName,
@@ -378,9 +386,13 @@ Rules:
           spec_unit: spec.specUnit || null,
           spec_value_numeric: spec.specValueNumeric || null,
           extraction_confidence: parsed.extractionConfidence || 0.7,
-        });
-        if (!error) storedTechnicalSpecifications++;
+        }));
+        const { error } = await db.from('community_technical_specifications').insert(rows);
+        if (error) console.error('Failed to store tech specs:', error.message);
+        else { storedTechnicalSpecifications = rows.length; console.log(`Stored ${rows.length} technical specifications`); }
       }
+
+      console.log('Database storage complete', new Date().toISOString());
     }
 
     // 7. Return extracted data with storage counts
