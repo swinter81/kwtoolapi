@@ -868,6 +868,10 @@ export type Database = {
           created_at: string | null
           description: string | null
           ean_code: string | null
+          extraction_completed_at: string | null
+          extraction_error: string | null
+          extraction_started_at: string | null
+          extraction_status: string | null
           id: string | null
           image_url: string | null
           is_coupler: boolean | null
@@ -893,6 +897,10 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           ean_code?: string | null
+          extraction_completed_at?: string | null
+          extraction_error?: string | null
+          extraction_started_at?: string | null
+          extraction_status?: string | null
           id?: string | null
           image_url?: string | null
           is_coupler?: boolean | null
@@ -918,6 +926,10 @@ export type Database = {
           created_at?: string | null
           description?: string | null
           ean_code?: string | null
+          extraction_completed_at?: string | null
+          extraction_error?: string | null
+          extraction_started_at?: string | null
+          extraction_status?: string | null
           id?: string | null
           image_url?: string | null
           is_coupler?: boolean | null

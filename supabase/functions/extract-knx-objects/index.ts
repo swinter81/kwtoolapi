@@ -5,6 +5,7 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const CRAWLER_SERVICE_KEY = Deno.env.get("CRAWLER_SERVICE_KEY")!;
 
 serve(async (req) => {
+  let _order_number = '';
   try {
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace("Bearer ", "");
@@ -13,6 +14,7 @@ serve(async (req) => {
     }
 
     const { pdf_base64, product_name, order_number, manufacturer, category } = await req.json();
+    _order_number = order_number || '';
     console.log('extract-knx-objects called for:', product_name, order_number, new Date().toISOString());
 
     if (!pdf_base64) {
@@ -258,6 +260,11 @@ Rules:
         else { storedTechnicalSpecifications = rows.length; console.log(`Stored ${rows.length} technical specifications`); }
       }
 
+      // Update extraction_status to 'completed'
+      await db.from('community_products')
+        .update({ extraction_status: 'completed', extraction_completed_at: new Date().toISOString(), extraction_error: null })
+        .eq('id', productId);
+
       console.log('Database storage complete', new Date().toISOString());
     } else {
       console.warn('No product found for order_number:', order_number);
@@ -281,6 +288,18 @@ Rules:
 
   } catch (err) {
     console.error('Fatal error:', err.message, err.stack);
+
+    // Update extraction_status to 'failed'
+    try {
+      const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+      const failDb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      if (_order_number) {
+        await failDb.from('community_products')
+          .update({ extraction_status: 'failed', extraction_error: err.message })
+          .ilike('order_number', `%${_order_number}%`);
+      }
+    } catch (_) { /* best effort */ }
+
     return new Response(JSON.stringify({ error: `Fatal error: ${err.message}` }), { status: 500 });
   }
 });

@@ -158,7 +158,16 @@ Respond with ONLY valid JSON:
       console.error('PDF page extraction error:', pdfErr.message);
     }
 
-    // 3. Convert trimmed PDF to base64
+    // 3. Update extraction_status to 'extracting'
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    if (order_number) {
+      await db.from('community_products')
+        .update({ extraction_status: 'extracting', extraction_started_at: new Date().toISOString() })
+        .ilike('order_number', `%${order_number}%`);
+    }
+
+    // 4. Convert trimmed PDF to base64
     const pdfBase64 = toBase64(processedPdfBytes);
     console.log(`PDF base64 ready, length: ${pdfBase64.length} chars`, new Date().toISOString());
 
