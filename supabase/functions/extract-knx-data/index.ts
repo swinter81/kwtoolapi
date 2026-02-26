@@ -36,8 +36,11 @@ serve(async (req) => {
 
     const pdfBytes = new Uint8Array(await pdfResponse.arrayBuffer());
     
-    if (pdfBytes.length > 20 * 1024 * 1024) {
-      return new Response(JSON.stringify({ error: "PDF too large (>20MB)" }), { status: 400 });
+    if (pdfBytes.length > 5 * 1024 * 1024) {
+      return new Response(JSON.stringify({ 
+        error: 'PDF too large (>5MB). Likely a catalog, not a product datasheet.',
+        size: pdfBytes.length,
+      }), { status: 400 });
     }
 
     // 2. Convert to base64
