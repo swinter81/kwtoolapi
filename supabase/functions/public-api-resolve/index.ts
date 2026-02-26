@@ -206,6 +206,7 @@ async function fullResolve(db: any, knxId: string, autoDiscover: boolean) {
             description: claudeResult.description,
             medium_types: ['TP'],
             status: 'approved',
+            extraction_status: 'identified',
           });
 
           if (!error) {
@@ -498,6 +499,7 @@ async function enrichResult(db: any, base: any, product: any) {
       category: product.category,
       mediumTypes: product.medium_types,
       specifications: product.specifications,
+      extractionStatus: product.extraction_status || 'pending',
     },
     communicationObjects: {
       count: coCount || 0,
