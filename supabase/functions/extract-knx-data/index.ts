@@ -178,16 +178,114 @@ Rules:
       }), { status: 500 });
     }
 
-    // 6. Return extracted data
+    // 6. Store extracted data in the database
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+    const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+    const { data: products } = await db.from('community_products')
+      .select('id')
+      .ilike('order_number', `%${order_number}%`)
+      .limit(1);
+
+    const productId = products?.[0]?.id;
+    let storedCommunicationObjects = 0;
+    let storedParameters = 0;
+    let storedFunctionalBlocks = 0;
+    let storedTechnicalSpecifications = 0;
+
+    if (productId) {
+      // Store communication objects
+      for (const obj of (parsed.communicationObjects || [])) {
+        const { error } = await db.from('community_communication_objects').insert({
+          product_id: productId,
+          object_number: obj.objectNumber,
+          name: obj.name,
+          function_text: obj.functionText || null,
+          channel_number: obj.channelNumber || null,
+          channel_name: obj.channelName || null,
+          functional_block: obj.functionalBlock || null,
+          dpt_id: obj.dptId || null,
+          dpt_name: obj.dptName || null,
+          dpt_size_bits: obj.dptSizeBits || null,
+          dpt_unit: obj.dptUnit || null,
+          read_flag: obj.readFlag || false,
+          write_flag: obj.writeFlag || false,
+          communicate_flag: obj.communicateFlag || false,
+          transmit_flag: obj.transmitFlag || false,
+          update_flag: obj.updateFlag || false,
+          read_on_init_flag: obj.readOnInitFlag || false,
+          priority: obj.priority || 'low',
+          description: obj.description || null,
+          extraction_confidence: parsed.extractionConfidence || 0.7,
+        });
+        if (!error) storedCommunicationObjects++;
+      }
+
+      // Store parameters
+      for (const param of (parsed.parameters || [])) {
+        const { error } = await db.from('community_parameters').insert({
+          product_id: productId,
+          param_name: param.paramName,
+          param_group: param.paramGroup || null,
+          param_subgroup: param.paramSubgroup || null,
+          channel_number: param.channelNumber || null,
+          channel_name: param.channelName || null,
+          param_type: param.paramType || 'text',
+          default_value: param.defaultValue != null ? String(param.defaultValue) : null,
+          value_min: param.valueMin != null ? String(param.valueMin) : null,
+          value_max: param.valueMax != null ? String(param.valueMax) : null,
+          value_unit: param.valueUnit || null,
+          step_size: param.stepSize != null ? String(param.stepSize) : null,
+          enum_values: param.enumValues ? JSON.stringify(param.enumValues) : null,
+          description: param.description || null,
+          extraction_confidence: parsed.extractionConfidence || 0.7,
+        });
+        if (!error) storedParameters++;
+      }
+
+      // Store functional blocks
+      for (const block of (parsed.functionalBlocks || [])) {
+        const { error } = await db.from('community_functional_blocks').insert({
+          product_id: productId,
+          block_name: block.blockName,
+          block_type: block.blockType || null,
+          channel_count: block.channelCount || null,
+          description: block.description || null,
+          extraction_confidence: parsed.extractionConfidence || 0.7,
+        });
+        if (!error) storedFunctionalBlocks++;
+      }
+
+      // Store technical specifications
+      for (const spec of (parsed.technicalSpecifications || [])) {
+        const { error } = await db.from('community_technical_specifications').insert({
+          product_id: productId,
+          spec_category: spec.specCategory,
+          spec_name: spec.specName,
+          spec_value: spec.specValue,
+          spec_unit: spec.specUnit || null,
+          spec_value_numeric: spec.specValueNumeric || null,
+          extraction_confidence: parsed.extractionConfidence || 0.7,
+        });
+        if (!error) storedTechnicalSpecifications++;
+      }
+    }
+
+    // 7. Return extracted data with storage counts
     return new Response(JSON.stringify({
       action: "extracted",
       product: product_name,
       orderNumber: order_number,
+      productId: productId || null,
       communicationObjects: parsed.communicationObjects || [],
       parameters: parsed.parameters || [],
       functionalBlocks: parsed.functionalBlocks || [],
       technicalSpecifications: parsed.technicalSpecifications || [],
       extractionConfidence: parsed.extractionConfidence || 0,
+      storedCommunicationObjects,
+      storedParameters,
+      storedFunctionalBlocks,
+      storedTechnicalSpecifications,
       usage: claudeData.usage || {},
     }), {
       headers: { "Content-Type": "application/json" },
