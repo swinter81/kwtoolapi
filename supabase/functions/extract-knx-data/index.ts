@@ -1,6 +1,6 @@
 // v2 - KNX data extraction via Claude with PDF + intelligent page extraction
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib';
+import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1';
 
 const CRAWLER_SERVICE_KEY = Deno.env.get("CRAWLER_SERVICE_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
@@ -52,6 +52,7 @@ serve(async (req) => {
     let totalPages = 0;
 
     try {
+      console.log('pdf-lib loaded, attempting to parse PDF...');
       const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
       totalPages = pdfDoc.getPageCount();
       console.log(`PDF has ${totalPages} pages, size: ${pdfBytes.length} bytes`);
