@@ -400,9 +400,9 @@ async function triggerAutoDiscovery(manufacturer: any, segments: any, searchTerm
   // Build targeted search queries
   const queries: string[] = [];
   for (const term of searchTerms.slice(0, 3)) {
-    if (domain) queries.push(`site:${domain} "${term}" KNX datasheet`);
+    if (domain) queries.push(`site:${domain} "${term}" KNX datasheet filetype:pdf`);
     queries.push(`${manufacturer.shortName} "${term}" KNX datasheet filetype:pdf`);
-    queries.push(`${manufacturer.shortName} "${term}" KNX product`);
+    queries.push(`${manufacturer.shortName} "${term}" KNX product datasheet filetype:pdf`);
   }
 
   const pdfUrls: string[] = [];
