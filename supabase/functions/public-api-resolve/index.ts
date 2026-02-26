@@ -373,6 +373,12 @@ async function searchByClaudeHint(db: any, manufacturer: any, claudeResult: any)
 // ─── AUTO-DISCOVERY ────────────────────────────────────────
 
 async function triggerAutoDiscovery(manufacturer: any, segments: any, searchTerms: string[]) {
+  console.log('triggerAutoDiscovery called', {
+    hasSerperKey: !!SERPER_API_KEY,
+    hasCrawlerKey: !!CRAWLER_SERVICE_KEY,
+    manufacturer: manufacturer.shortName,
+    searchTerms,
+  });
   if (!SERPER_API_KEY || !CRAWLER_SERVICE_KEY) return;
   
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -409,21 +415,25 @@ async function triggerAutoDiscovery(manufacturer: any, segments: any, searchTerm
         body: JSON.stringify({ q: query, num: 5, gl: 'de', hl: 'en' }),
       });
       const data = await resp.json();
+      const organicCount = (data.organic || []).length;
+      const pdfFound: string[] = [];
       
       for (const r of (data.organic || [])) {
         if (r.link?.toLowerCase().endsWith('.pdf') && !pdfUrls.includes(r.link)) {
           pdfUrls.push(r.link);
+          pdfFound.push(r.link);
         }
       }
+      console.log('Serper search:', { query, organicResults: organicCount, pdfsFound: pdfFound.length, pdfUrls: pdfFound });
       await new Promise(r => setTimeout(r, 100));
       if (pdfUrls.length >= 3) break;
-    } catch (e) {}
+    } catch (e) { console.error('Serper search failed:', e); }
   }
 
   // Process top PDFs
   for (const pdfUrl of pdfUrls.slice(0, 2)) {
     try {
-      await fetch(`${SUPABASE_URL}/functions/v1/extract-knx-data`, {
+      const extractResp = await fetch(`${SUPABASE_URL}/functions/v1/extract-knx-data`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${CRAWLER_SERVICE_KEY}`,
@@ -437,7 +447,8 @@ async function triggerAutoDiscovery(manufacturer: any, segments: any, searchTerm
           category: 'unknown',
         }),
       });
-    } catch (e) {}
+      console.log('extract-knx-data call:', { pdfUrl, status: extractResp.status });
+    } catch (e) { console.error('extract-knx-data call failed:', { pdfUrl, error: e }); }
   }
 }
 
