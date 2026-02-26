@@ -24,6 +24,33 @@ serve(async (req) => {
     const { data: ipProducts, count: ipCount } = await db.from('products').select('id', { count: 'exact', head: true }).eq('status', 'approved').contains('medium_types', ['IP']);
     const { data: rfProducts, count: rfCount } = await db.from('products').select('id', { count: 'exact', head: true }).eq('status', 'approved').contains('medium_types', ['RF']);
 
+    // Document stats
+    const { count: docTotal } = await db
+      .from('community_crawled_documents')
+      .select('id', { count: 'exact', head: true });
+
+    const { data: docTypes } = await db
+      .from('community_crawled_documents')
+      .select('document_type');
+
+    const docByType: Record<string, number> = {};
+    for (const d of (docTypes || [])) {
+      const t = d.document_type || 'unknown';
+      docByType[t] = (docByType[t] || 0) + 1;
+    }
+
+    // Product category breakdown
+    const { data: categories } = await db
+      .from('products')
+      .select('category')
+      .eq('status', 'approved');
+
+    const prodByCategory: Record<string, number> = {};
+    for (const p of (categories || [])) {
+      const c = p.category || 'uncategorized';
+      prodByCategory[c] = (prodByCategory[c] || 0) + 1;
+    }
+
     const lastUpdated = lastMfr.data?.[0]?.updated_at || new Date().toISOString();
 
     return successResponse({
@@ -31,8 +58,13 @@ serve(async (req) => {
       products: {
         total: prodTotal.count || 0,
         byMediumType: { TP: tpProducts?.length || prodTotal.count || 0, IP: ipCount || 0, RF: rfCount || 0 },
+        byCategory: prodByCategory,
       },
       applicationPrograms: { total: appTotal.count || 0 },
+      documents: {
+        total: docTotal || 0,
+        byType: docByType,
+      },
       lastUpdated,
       dataVersion: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
     }, undefined, 300);

@@ -63,6 +63,7 @@ serve(async (req) => {
     const manufacturerId = url.searchParams.get('manufacturerId') || '';
     const orderNumber = url.searchParams.get('orderNumber') || '';
     const mediumType = url.searchParams.get('mediumType') || '';
+    const category = url.searchParams.get('category') || '';
     const isCoupler = url.searchParams.get('isCoupler');
     const isIpDevice = url.searchParams.get('isIpDevice');
 
@@ -83,6 +84,7 @@ serve(async (req) => {
     }
     if (orderNumber) query = query.ilike('order_number', `%${orderNumber}%`);
     if (mediumType) query = query.contains('medium_types', [mediumType]);
+    if (category) query = query.eq('category', category);
     if (isCoupler !== null && isCoupler !== undefined && isCoupler !== '') query = query.eq('is_coupler', isCoupler === 'true');
     if (isIpDevice !== null && isIpDevice !== undefined && isIpDevice !== '') query = query.eq('is_ip_device', isIpDevice === 'true');
 
@@ -107,6 +109,7 @@ function formatProductList(row: any) {
     description: row.description,
     manufacturer: mfr ? { id: mfr.id, knxManufacturerId: mfr.knx_manufacturer_id, shortName: mfr.short_name } : null,
     mediumTypes: row.medium_types,
+    category: row.category,
     busCurrent: row.bus_current_ma,
     isCoupler: row.is_coupler,
     isIpDevice: row.is_ip_device,
@@ -129,10 +132,16 @@ function formatProductDetail(row: any) {
       name: mfr.name, shortName: mfr.short_name,
     } : null,
     mediumTypes: row.medium_types,
+    category: row.category,
+    specifications: row.specifications,
+    imageUrl: row.image_url,
     busCurrent: row.bus_current_ma,
     isCoupler: row.is_coupler,
     isIpDevice: row.is_ip_device,
     isPowerSupply: row.is_power_supply,
+    documents: {
+      href: `/v1/documents?manufacturerId=${row.manufacturer_id}`,
+    },
     lastUpdated: row.updated_at,
   };
 }
