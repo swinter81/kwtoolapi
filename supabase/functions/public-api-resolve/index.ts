@@ -180,6 +180,22 @@ async function fullResolve(db: any, knxId: string, autoDiscover: boolean) {
       // Auto-create the product from Claude's identification
       if (claudeResult.orderNumber && claudeResult.confidence >= 0.7) {
         try {
+          // Deduplication check before creating
+          const { data: existing } = await db.from('community_products')
+            .select('id')
+            .eq('manufacturer_id', base.manufacturer.id)
+            .eq('order_number', claudeResult.orderNumber)
+            .maybeSingle();
+
+          if (existing) {
+            const { data: existingProduct } = await db.from('community_products')
+              .select('*').eq('id', existing.id).maybeSingle();
+            if (existingProduct) {
+              return await enrichResult(db, base, existingProduct);
+            }
+          }
+
+          // Only create if it truly doesn't exist
           const newId = 'prod_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
           const { error } = await db.from('community_products').insert({
             id: newId,
@@ -236,10 +252,19 @@ async function fullResolve(db: any, knxId: string, autoDiscover: boolean) {
 async function databaseLookup(db: any, manufacturer: any, segments: any) {
   // Strategy 1: Program number as order number (works for Gira, many others)
   if (segments.programNumber) {
-    // Try exact: "1038 00"
+    // Try exact match with common suffixes: "1038 00"
+    for (const suffix of ['', ' 00', '00']) {
+      const tryOrder = segments.programNumber + suffix;
+      const { data: pExact } = await db.from('community_products')
+        .select('*').eq('manufacturer_id', manufacturer.id)
+        .eq('order_number', tryOrder).maybeSingle();
+      if (pExact) return pExact;
+    }
+
+    // Try starts-with
     const { data: p1 } = await db.from('community_products')
       .select('*').eq('manufacturer_id', manufacturer.id)
-      .ilike('order_number', `${segments.programNumber}%`).limit(1).single();
+      .ilike('order_number', `${segments.programNumber}%`).limit(1).maybeSingle();
     if (p1) return p1;
 
     // Try contains
@@ -248,10 +273,9 @@ async function databaseLookup(db: any, manufacturer: any, segments: any) {
       .ilike('order_number', `%${segments.programNumber}%`).limit(5);
     if (p2?.length === 1) return p2[0];
     if (p2?.length > 1) {
-      // Multiple matches — prefer exact start match
       const exact = p2.find((p: any) => p.order_number?.startsWith(segments.programNumber));
       if (exact) return exact;
-      return p2[0]; // best guess
+      return p2[0];
     }
   }
 
