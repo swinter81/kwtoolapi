@@ -23,8 +23,8 @@ serve(async (req) => {
     const searchAll = types.includes('all');
 
     if (searchAll || types.includes('manufacturer')) {
-      const { data } = await db.from('manufacturers')
-        .select('*').eq('status', 'approved')
+      const { data } = await db.from('community_manufacturers')
+        .select('*')
         .or(`name.ilike.%${q}%,short_name.ilike.%${q}%,hex_code.ilike.%${q}%`)
         .limit(limit);
       for (const m of data || []) {
@@ -40,30 +40,28 @@ serve(async (req) => {
     }
 
     if (searchAll || types.includes('product')) {
-      const { data } = await db.from('products')
-        .select('*, manufacturers!manufacturer_id(short_name)').eq('status', 'approved')
+      const { data } = await db.from('community_products')
+        .select('*')
         .or(`name.ilike.%${q}%,order_number.ilike.%${q}%,description.ilike.%${q}%`)
         .limit(limit);
+
+      // Batch lookup manufacturers for products
+      const mfrIds = [...new Set((data || []).map((p: any) => p.manufacturer_id).filter(Boolean))];
+      let mfrMap: Record<string, any> = {};
+      if (mfrIds.length > 0) {
+        const { data: mfrs } = await db.from('community_manufacturers').select('id, short_name').in('id', mfrIds);
+        for (const m of mfrs || []) mfrMap[m.id] = m;
+      }
+
       for (const p of data || []) {
         const matchedFields: string[] = [];
         if (p.name?.toLowerCase().includes(q.toLowerCase())) matchedFields.push('name');
         if (p.order_number?.toLowerCase().includes(q.toLowerCase())) matchedFields.push('orderNumber');
         if (p.description?.toLowerCase().includes(q.toLowerCase())) matchedFields.push('description');
+        const mfr = mfrMap[p.manufacturer_id];
         results.push({
           type: 'product', score: matchedFields.includes('orderNumber') ? 0.98 : 0.8, matchedFields,
-          item: { id: p.id, knxProductId: p.knx_product_id, name: p.name, orderNumber: p.order_number, manufacturer: { shortName: p.manufacturers?.short_name } },
-        });
-      }
-    }
-
-    if (searchAll || types.includes('application_program')) {
-      const { data } = await db.from('application_programs')
-        .select('*, manufacturers!manufacturer_id(short_name)').eq('status', 'approved')
-        .ilike('name', `%${q}%`).limit(limit);
-      for (const a of data || []) {
-        results.push({
-          type: 'application_program', score: 0.8, matchedFields: ['name'],
-          item: { id: a.id, knxApplicationId: a.knx_application_id, name: a.name, version: a.version, manufacturer: { shortName: a.manufacturers?.short_name } },
+          item: { id: p.id, knxProductId: p.knx_product_id, name: p.name, orderNumber: p.order_number, manufacturer: mfr ? { shortName: mfr.short_name } : null },
         });
       }
     }

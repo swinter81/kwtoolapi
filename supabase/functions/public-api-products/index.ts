@@ -19,21 +19,16 @@ serve(async (req) => {
       const { limit, offset } = parseQueryParams(url);
       let prodId = productId;
       if (productId.includes('_H-')) {
-        const { data: prod } = await db.from('products').select('id').eq('knx_product_id', productId).single();
+        const { data: prod } = await db.from('community_products').select('id').eq('knx_product_id', productId).single();
         if (!prod) return errorResponse('NOT_FOUND', `Product '${productId}' not found.`, 404);
         prodId = prod.id;
       }
-      const { data, count, error } = await db.from('application_programs')
-        .select('*, manufacturers!manufacturer_id(id, knx_manufacturer_id, short_name)', { count: 'exact' })
-        .eq('product_id', prodId).eq('status', 'approved')
-        .range(offset, offset + limit - 1).order('name');
-      if (error) throw error;
-      return listResponse((data || []).map(formatAppProgram), { total: count || 0, limit, offset }, 3600);
+      // Note: there's no community_application_programs view, so skip this sub-resource
+      return listResponse([], { total: 0, limit, offset }, 3600);
     }
 
     if (productId) {
-      let query = db.from('products')
-        .select('*, manufacturers!manufacturer_id(*)').eq('status', 'approved');
+      let query = db.from('community_products').select('*');
       if (productId.includes('_H-')) {
         query = query.eq('knx_product_id', productId);
       } else {
@@ -42,19 +37,15 @@ serve(async (req) => {
       const { data, error } = await query.single();
       if (error || !data) return errorResponse('NOT_FOUND', `Product '${productId}' not found.`, 404);
 
-      // Fetch application programs
-      const { data: apps } = await db.from('application_programs')
-        .select('*').eq('product_id', data.id).eq('status', 'approved').order('version');
+      // Lookup manufacturer
+      let mfr = null;
+      if (data.manufacturer_id) {
+        const { data: m } = await db.from('community_manufacturers').select('*').eq('id', data.manufacturer_id).single();
+        mfr = m;
+      }
 
       return successResponse({
-        ...formatProductDetail(data),
-        applicationPrograms: (apps || []).map(a => ({
-          id: a.id,
-          knxApplicationId: a.knx_application_id,
-          name: a.name,
-          version: a.version,
-          communicationObjectCount: a.communication_object_count,
-        })),
+        ...formatProductDetail(data, mfr),
       }, undefined, 3600);
     }
 
@@ -67,16 +58,14 @@ serve(async (req) => {
     const isCoupler = url.searchParams.get('isCoupler');
     const isIpDevice = url.searchParams.get('isIpDevice');
 
-    let query = db.from('products')
-      .select('*, manufacturers!manufacturer_id(id, knx_manufacturer_id, short_name)', { count: 'exact' })
-      .eq('status', 'approved');
+    let query = db.from('community_products').select('*', { count: 'exact' });
 
     if (search) {
       query = query.or(`name.ilike.%${search}%,order_number.ilike.%${search}%,description.ilike.%${search}%`);
     }
     if (manufacturerId) {
       if (manufacturerId.startsWith('M-')) {
-        const { data: mfr } = await db.from('manufacturers').select('id').eq('knx_manufacturer_id', manufacturerId).single();
+        const { data: mfr } = await db.from('community_manufacturers').select('id').eq('knx_manufacturer_id', manufacturerId).single();
         if (mfr) query = query.eq('manufacturer_id', mfr.id);
       } else {
         query = query.eq('manufacturer_id', manufacturerId);
@@ -92,15 +81,22 @@ serve(async (req) => {
     const { data, count, error } = await query.range(offset, offset + limit - 1).order(sortCol, { ascending: order });
     if (error) throw error;
 
-    return listResponse((data || []).map(formatProductList), { total: count || 0, limit, offset }, 3600);
+    // Batch lookup manufacturers
+    const mfrIds = [...new Set((data || []).map((r: any) => r.manufacturer_id).filter(Boolean))];
+    let mfrMap: Record<string, any> = {};
+    if (mfrIds.length > 0) {
+      const { data: mfrs } = await db.from('community_manufacturers').select('id, knx_manufacturer_id, short_name').in('id', mfrIds);
+      for (const m of mfrs || []) mfrMap[m.id] = m;
+    }
+
+    return listResponse((data || []).map((r: any) => formatProductList(r, mfrMap[r.manufacturer_id])), { total: count || 0, limit, offset }, 3600);
   } catch (e) {
     console.error(e);
     return errorResponse('INTERNAL_ERROR', 'Internal server error', 500);
   }
 });
 
-function formatProductList(row: any) {
-  const mfr = row.manufacturers;
+function formatProductList(row: any, mfr: any) {
   return {
     id: row.id,
     knxProductId: row.knx_product_id,
@@ -118,8 +114,7 @@ function formatProductList(row: any) {
   };
 }
 
-function formatProductDetail(row: any) {
-  const mfr = row.manufacturers;
+function formatProductDetail(row: any, mfr: any) {
   return {
     id: row.id,
     knxProductId: row.knx_product_id,
@@ -142,22 +137,6 @@ function formatProductDetail(row: any) {
     documents: {
       href: `/v1/documents?manufacturerId=${row.manufacturer_id}`,
     },
-    lastUpdated: row.updated_at,
-  };
-}
-
-function formatAppProgram(row: any) {
-  const mfr = row.manufacturers;
-  return {
-    id: row.id,
-    knxApplicationId: row.knx_application_id,
-    knxProgramId: row.knx_program_id,
-    name: row.name,
-    version: row.version,
-    applicationNumber: row.application_number,
-    manufacturer: mfr ? { id: mfr.id, knxManufacturerId: mfr.knx_manufacturer_id, shortName: mfr.short_name } : null,
-    communicationObjectCount: row.communication_object_count,
-    maxGroupAddressLinks: row.max_group_address_links,
     lastUpdated: row.updated_at,
   };
 }

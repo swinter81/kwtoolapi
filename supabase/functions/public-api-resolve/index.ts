@@ -15,7 +15,6 @@ serve(async (req) => {
     const knxId = pathParts[1] || null;
 
     if (req.method === 'POST' && !knxId) {
-      // Batch resolve
       const body = await req.json();
       const knxIds: string[] = body.knxIds || [];
       if (!knxIds.length || knxIds.length > 200) {
@@ -70,18 +69,18 @@ async function resolveId(db: any, knxId: string) {
   if (!type) return base;
 
   if (type === 'manufacturer') {
-    const { data } = await db.from('manufacturers').select('*').eq('knx_manufacturer_id', knxId).eq('status', 'approved').single();
+    const { data } = await db.from('community_manufacturers').select('*').eq('knx_manufacturer_id', knxId).single();
     if (!data) return base;
     return { ...base, resolved: true, manufacturer: { id: data.id, knxManufacturerId: data.knx_manufacturer_id, hexCode: data.hex_code, name: data.name, shortName: data.short_name } };
   }
 
   // Extract manufacturer ID
   const mfrCode = knxId.match(/^(M-[0-9A-Fa-f]{4})/)?.[1];
-  const { data: mfr } = await db.from('manufacturers').select('*').eq('knx_manufacturer_id', mfrCode).eq('status', 'approved').single();
+  const { data: mfr } = await db.from('community_manufacturers').select('*').eq('knx_manufacturer_id', mfrCode).single();
   const mfrSummary = mfr ? { id: mfr.id, knxManufacturerId: mfr.knx_manufacturer_id, hexCode: mfr.hex_code, name: mfr.name, shortName: mfr.short_name } : null;
 
   if (type === 'product') {
-    const { data: prod } = await db.from('products').select('*').eq('knx_product_id', knxId).eq('status', 'approved').single();
+    const { data: prod } = await db.from('community_products').select('*').eq('knx_product_id', knxId).single();
     if (!prod) return { ...base, manufacturer: mfrSummary };
     return {
       ...base, resolved: true, manufacturer: mfrSummary,
@@ -89,23 +88,41 @@ async function resolveId(db: any, knxId: string) {
     };
   }
 
+  // application_program and hardware_program_mapping use the non-community tables (they exist in public schema)
   if (type === 'application_program') {
-    const { data: app } = await db.from('application_programs').select('*, products!product_id(id, knx_product_id, name, order_number, medium_types)').eq('knx_application_id', knxId).eq('status', 'approved').single();
+    const { data: app } = await db.from('application_programs').select('*').eq('knx_application_id', knxId).eq('status', 'approved').single();
     if (!app) return { ...base, manufacturer: mfrSummary };
+    // Lookup product
+    let prod = null;
+    if (app.product_id) {
+      const { data: p } = await db.from('community_products').select('id, knx_product_id, name, order_number, medium_types').eq('id', app.product_id).single();
+      prod = p;
+    }
     return {
       ...base, resolved: true, manufacturer: mfrSummary,
-      product: app.products ? { id: app.products.id, knxProductId: app.products.knx_product_id, name: app.products.name, orderNumber: app.products.order_number, mediumTypes: app.products.medium_types } : null,
+      product: prod ? { id: prod.id, knxProductId: prod.knx_product_id, name: prod.name, orderNumber: prod.order_number, mediumTypes: prod.medium_types } : null,
       applicationProgram: { id: app.id, knxApplicationId: app.knx_application_id, name: app.name, version: app.version, communicationObjectCount: app.communication_object_count },
     };
   }
 
   if (type === 'hardware_program_mapping') {
-    const { data: hw } = await db.from('hardware_program_mappings').select('*, products!product_id(id, knx_product_id, name, order_number), application_programs!application_program_id(id, knx_application_id, name, version)').eq('knx_hw2prog_id', knxId).single();
+    const { data: hw } = await db.from('hardware_program_mappings').select('*').eq('knx_hw2prog_id', knxId).single();
     if (!hw) return { ...base, manufacturer: mfrSummary };
+    // Lookup product and app program
+    let prod = null;
+    if (hw.product_id) {
+      const { data: p } = await db.from('community_products').select('id, knx_product_id, name, order_number').eq('id', hw.product_id).single();
+      prod = p;
+    }
+    let app = null;
+    if (hw.application_program_id) {
+      const { data: a } = await db.from('application_programs').select('id, knx_application_id, name, version').eq('id', hw.application_program_id).single();
+      app = a;
+    }
     return {
       ...base, resolved: true, manufacturer: mfrSummary,
-      product: hw.products ? { id: hw.products.id, knxProductId: hw.products.knx_product_id, name: hw.products.name, orderNumber: hw.products.order_number } : null,
-      applicationProgram: hw.application_programs ? { id: hw.application_programs.id, knxApplicationId: hw.application_programs.knx_application_id, name: hw.application_programs.name, version: hw.application_programs.version } : null,
+      product: prod ? { id: prod.id, knxProductId: prod.knx_product_id, name: prod.name, orderNumber: prod.order_number } : null,
+      applicationProgram: app ? { id: app.id, knxApplicationId: app.knx_application_id, name: app.name, version: app.version } : null,
       hardwareProgramMapping: { knxHw2ProgId: hw.knx_hw2prog_id },
     };
   }
