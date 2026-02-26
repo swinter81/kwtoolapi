@@ -177,27 +177,32 @@ async function fullResolve(db: any, knxId: string, autoDiscover: boolean) {
         return await enrichResult(db, base, product);
       }
       
-      // Claude knows the product but we don't have it yet — create it immediately
-      if (claudeResult.confidence >= 0.7 && claudeResult.orderNumber) {
-        const newProductId = 'prod_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
-        await db.from('community_products').insert({
-          id: newProductId,
-          name: claudeResult.productName,
-          order_number: claudeResult.orderNumber,
-          manufacturer_id: base.manufacturer.id,
-          category: claudeResult.category || 'other',
-          description: claudeResult.description,
-          medium_types: ['TP'],
-          status: 'approved',
-        }, { headers: { 'Prefer': 'return=minimal' } });
+      // Auto-create the product from Claude's identification
+      if (claudeResult.orderNumber && claudeResult.confidence >= 0.7) {
+        try {
+          const newId = 'prod_' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+          const { error } = await db.from('community_products').insert({
+            id: newId,
+            name: claudeResult.productName,
+            order_number: claudeResult.orderNumber,
+            manufacturer_id: base.manufacturer.id,
+            category: claudeResult.category || 'other',
+            description: claudeResult.description,
+            medium_types: ['TP'],
+            status: 'approved',
+          });
 
-        // Fetch it back and return enriched result
-        const { data: newProduct } = await db.from('community_products')
-          .select('*').eq('id', newProductId).single();
-        if (newProduct) {
-          // Still trigger auto-discovery in background to get PDFs and detailed KNX data
-          triggerAutoDiscovery(base.manufacturer, segments, [...(claudeResult.searchTerms || []), claudeResult.orderNumber, ...segments.searchTerms].filter(Boolean)).catch(() => {});
-          return await enrichResult(db, base, newProduct);
+          if (!error) {
+            const { data: newProduct } = await db.from('community_products')
+              .select('*').eq('id', newId).single();
+            if (newProduct) {
+              const allTerms = [...(claudeResult.searchTerms || []), claudeResult.orderNumber, ...segments.searchTerms].filter(Boolean);
+              triggerAutoDiscovery(base.manufacturer, segments, allTerms).catch(() => {});
+              return await enrichResult(db, base, newProduct);
+            }
+          }
+        } catch (e) {
+          console.error('Auto-create failed:', e);
         }
       }
 
