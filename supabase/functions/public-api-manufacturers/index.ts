@@ -11,24 +11,20 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const pathParts = url.pathname.split('/').filter(Boolean);
-    // Path: /public-api-manufacturers or /public-api-manufacturers/{id} or /public-api-manufacturers/{id}/products
     const manufacturerId = pathParts[1] || null;
     const subResource = pathParts[2] || null;
     const db = getServiceClient();
 
     if (manufacturerId && subResource === 'products') {
-      // GET /manufacturers/{id}/products
       const { limit, offset, search } = parseQueryParams(url);
-      
-      // First resolve the manufacturer
       let mfrId = manufacturerId;
       if (manufacturerId.startsWith('M-')) {
-        const { data: mfr } = await db.from('manufacturers').select('id').eq('knx_manufacturer_id', manufacturerId).single();
+        const { data: mfr } = await db.from('community_manufacturers').select('id').eq('knx_manufacturer_id', manufacturerId).single();
         if (!mfr) return errorResponse('NOT_FOUND', `Manufacturer '${manufacturerId}' not found.`, 404);
         mfrId = mfr.id;
       }
 
-      let query = db.from('products').select('*', { count: 'exact' }).eq('manufacturer_id', mfrId).eq('status', 'approved');
+      let query = db.from('community_products').select('*', { count: 'exact' }).eq('manufacturer_id', mfrId);
       if (search) {
         query = query.or(`name.ilike.%${search}%,order_number.ilike.%${search}%,description.ilike.%${search}%`);
       }
@@ -40,8 +36,7 @@ serve(async (req) => {
     }
 
     if (manufacturerId) {
-      // GET /manufacturers/{id}
-      let query = db.from('manufacturers').select('*').eq('status', 'approved');
+      let query = db.from('community_manufacturers').select('*');
       if (manufacturerId.startsWith('M-')) {
         query = query.eq('knx_manufacturer_id', manufacturerId);
       } else {
@@ -61,7 +56,7 @@ serve(async (req) => {
     const { limit, offset, order, sort, search } = parseQueryParams(url);
     const hexCode = url.searchParams.get('hexCode') || '';
 
-    let query = db.from('manufacturers').select('*', { count: 'exact' }).eq('status', 'approved');
+    let query = db.from('community_manufacturers').select('*', { count: 'exact' });
     if (search) {
       query = query.or(`name.ilike.%${search}%,short_name.ilike.%${search}%`);
     }

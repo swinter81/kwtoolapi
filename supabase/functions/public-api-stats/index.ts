@@ -11,18 +11,17 @@ serve(async (req) => {
   try {
     const db = getServiceClient();
 
-    const [mfrTotal, mfrWithProducts, prodTotal, appTotal, lastMfr] = await Promise.all([
-      db.from('manufacturers').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
-      db.from('manufacturers').select('id', { count: 'exact', head: true }).eq('status', 'approved').gt('product_count', 0),
-      db.from('products').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
-      db.from('application_programs').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
-      db.from('manufacturers').select('updated_at').eq('status', 'approved').order('updated_at', { ascending: false }).limit(1),
+    const [mfrTotal, mfrWithProducts, prodTotal, lastMfr] = await Promise.all([
+      db.from('community_manufacturers').select('id', { count: 'exact', head: true }),
+      db.from('community_manufacturers').select('id', { count: 'exact', head: true }).gt('product_count', 0),
+      db.from('community_products').select('id', { count: 'exact', head: true }),
+      db.from('community_manufacturers').select('updated_at').order('updated_at', { ascending: false }).limit(1),
     ]);
 
     // Count by medium type
-    const { data: tpProducts } = await db.from('products').select('id', { count: 'exact', head: true }).eq('status', 'approved').contains('medium_types', ['TP']);
-    const { data: ipProducts, count: ipCount } = await db.from('products').select('id', { count: 'exact', head: true }).eq('status', 'approved').contains('medium_types', ['IP']);
-    const { data: rfProducts, count: rfCount } = await db.from('products').select('id', { count: 'exact', head: true }).eq('status', 'approved').contains('medium_types', ['RF']);
+    const { data: tpProducts } = await db.from('community_products').select('id', { count: 'exact', head: true }).contains('medium_types', ['TP']);
+    const { data: ipProducts, count: ipCount } = await db.from('community_products').select('id', { count: 'exact', head: true }).contains('medium_types', ['IP']);
+    const { data: rfProducts, count: rfCount } = await db.from('community_products').select('id', { count: 'exact', head: true }).contains('medium_types', ['RF']);
 
     // Document stats
     const { count: docTotal } = await db
@@ -41,9 +40,8 @@ serve(async (req) => {
 
     // Product category breakdown
     const { data: categories } = await db
-      .from('products')
-      .select('category')
-      .eq('status', 'approved');
+      .from('community_products')
+      .select('category');
 
     const prodByCategory: Record<string, number> = {};
     for (const p of (categories || [])) {
@@ -60,7 +58,6 @@ serve(async (req) => {
         byMediumType: { TP: tpProducts?.length || prodTotal.count || 0, IP: ipCount || 0, RF: rfCount || 0 },
         byCategory: prodByCategory,
       },
-      applicationPrograms: { total: appTotal.count || 0 },
       documents: {
         total: docTotal || 0,
         byType: docByType,
