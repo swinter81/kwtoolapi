@@ -53,6 +53,11 @@ export const api = {
     list: (params?: Record<string, string>) => callApi('public-api-dpts', '', params),
     get: (number: string) => callApi('public-api-dpts', number),
   },
+  documents: {
+    list: (params?: Record<string, string>) => callApi('public-api-documents', '', params),
+    get: (id: string) => callApi('public-api-documents', id),
+    text: (id: string) => callApi('public-api-documents', `${id}/text`),
+  },
   stats: () => callApi('public-api-stats'),
   health: () => callApi('public-api-health'),
   ingest: (resource: string, body: unknown, secret: string) => {

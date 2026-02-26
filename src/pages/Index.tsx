@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
-import { Database, Cpu, Terminal, Zap, Globe, Search, BarChart3 } from "lucide-react";
+import { Database, Cpu, Terminal, Zap, Globe, Search, BarChart3, FileText } from "lucide-react";
 
 const Index = () => {
   const [stats, setStats] = useState<any>(null);
@@ -43,7 +43,7 @@ const Index = () => {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
           <Card>
             <CardContent className="p-5 flex items-center gap-4">
               <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center">
@@ -74,6 +74,17 @@ const Index = () => {
               <div>
                 <p className="text-2xl font-bold">{stats.applicationPrograms?.total || 0}</p>
                 <p className="text-xs text-muted-foreground">App Programs</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center">
+                <FileText className="w-5 h-5 text-accent-foreground" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.documents?.total || 0}</p>
+                <p className="text-xs text-muted-foreground">Documents</p>
               </div>
             </CardContent>
           </Card>
