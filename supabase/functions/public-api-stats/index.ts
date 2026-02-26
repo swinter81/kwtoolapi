@@ -11,11 +11,15 @@ serve(async (req) => {
   try {
     const db = getServiceClient();
 
-    const [mfrTotal, mfrWithProducts, prodTotal, lastMfr] = await Promise.all([
+    const [mfrTotal, mfrWithProducts, prodTotal, lastMfr, commObjTotal, paramTotal, specTotal, blockTotal] = await Promise.all([
       db.from('community_manufacturers').select('id', { count: 'exact', head: true }),
       db.from('community_manufacturers').select('id', { count: 'exact', head: true }).gt('product_count', 0),
       db.from('community_products').select('id', { count: 'exact', head: true }),
       db.from('community_manufacturers').select('updated_at').order('updated_at', { ascending: false }).limit(1),
+      db.from('community_communication_objects').select('id', { count: 'exact', head: true }),
+      db.from('community_parameters').select('id', { count: 'exact', head: true }),
+      db.from('community_technical_specifications').select('id', { count: 'exact', head: true }),
+      db.from('community_functional_blocks').select('id', { count: 'exact', head: true }),
     ]);
 
     // Count by medium type
@@ -62,6 +66,10 @@ serve(async (req) => {
         total: docTotal || 0,
         byType: docByType,
       },
+      communicationObjects: { total: commObjTotal.count || 0 },
+      parameters: { total: paramTotal.count || 0 },
+      technicalSpecifications: { total: specTotal.count || 0 },
+      functionalBlocks: { total: blockTotal.count || 0 },
       lastUpdated,
       dataVersion: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
     }, undefined, 300);

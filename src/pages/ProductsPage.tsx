@@ -42,7 +42,7 @@ export default function ProductsPage() {
         method="GET"
         path="/v1/products/{productId}"
         title="Get Product"
-        description="Get a single product by public ID or KNX product ID."
+        description="Get a single product by public ID or KNX product ID. Response includes counts and links for communication objects, parameters, technical specifications, and functional blocks."
       />
 
       <TryItPanel
@@ -50,6 +50,42 @@ export default function ProductsPage() {
         endpoint="/v1/products/{productId}"
         pathParams={[{ name: "productId", placeholder: "M-0008_H-0012" }]}
         onExecute={async (params) => api.products.get(params.productId || 'prod_0008_h0012')}
+      />
+
+      <Separator className="my-10" />
+
+      <EndpointHeader
+        method="GET"
+        path="/v1/products/{productId}/communication-objects"
+        title="Communication Objects"
+        description="List all KNX communication objects (group objects) for a product. Each object has a datapoint type (DPT), flags (read/write/transmit), and optional channel context."
+      />
+
+      <Separator className="my-10" />
+
+      <EndpointHeader
+        method="GET"
+        path="/v1/products/{productId}/parameters"
+        title="Parameters"
+        description="List all ETS configurable parameters for a product, including value types, ranges, enum options, and channel grouping."
+      />
+
+      <Separator className="my-10" />
+
+      <EndpointHeader
+        method="GET"
+        path="/v1/products/{productId}/specifications"
+        title="Technical Specifications"
+        description="List structured technical specifications (electrical, mechanical, environmental, KNX bus, certifications) for a product."
+      />
+
+      <Separator className="my-10" />
+
+      <EndpointHeader
+        method="GET"
+        path="/v1/products/{productId}/functional-blocks"
+        title="Functional Blocks"
+        description="List logical functional blocks (e.g. switching, dimming, blind control) for a product, with channel counts."
       />
     </div>
   );
