@@ -148,12 +148,37 @@ async function fullResolve(db: any, knxId: string, autoDiscover: boolean) {
   // Step 1: Resolve manufacturer
   if (segments.manufacturerId) {
     const { data: mfr } = await db.from('community_manufacturers')
-      .select('*').eq('knx_manufacturer_id', segments.manufacturerId).single();
+      .select('*').eq('knx_manufacturer_id', segments.manufacturerId).maybeSingle();
     if (mfr) {
       base.manufacturer = {
         id: mfr.id, knxManufacturerId: mfr.knx_manufacturer_id,
         name: mfr.name, shortName: mfr.short_name,
+        website: mfr.website_url || null,
       };
+    } else {
+      // Unknown manufacturer — ask Claude to identify it
+      const mfrResult = await identifyManufacturer(segments);
+      if (mfrResult) {
+        const mfrId = 'mfr_' + segments.manufacturerHex.toLowerCase();
+        const { error } = await db.from('community_manufacturers').insert({
+          id: mfrId,
+          knx_manufacturer_id: segments.manufacturerId,
+          hex_code: segments.manufacturerHex,
+          name: mfrResult.fullName,
+          short_name: mfrResult.shortName,
+          website_url: mfrResult.website || null,
+          country: mfrResult.country || null,
+        });
+
+        if (!error) {
+          base.manufacturer = {
+            id: mfrId, knxManufacturerId: segments.manufacturerId,
+            name: mfrResult.fullName, shortName: mfrResult.shortName,
+            website: mfrResult.website || null,
+          };
+          console.log('Auto-created manufacturer:', mfrResult.fullName);
+        }
+      }
     }
   }
 
@@ -408,19 +433,23 @@ async function triggerAutoDiscovery(manufacturer: any, segments: any, searchTerm
   
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
   
-  const mfrDomains: Record<string, string> = {
-    'Gira': 'gira.de', 'MDT': 'mdt.de', 'JUNG': 'jung.de',
-    'Siemens': 'siemens.com', 'ABB': 'abb.com', 'Schneider Electric': 'se.com',
-    'Hager': 'hager.com', 'Theben': 'theben.de', 'Weinzierl': 'weinzierl.de',
-  };
-  const mfrSources: Record<string, string> = {
-    'Gira': 'gira', 'MDT': 'mdt', 'JUNG': 'jung', 'Siemens': 'siemens',
-    'ABB': 'abb', 'Schneider Electric': 'schneider', 'Hager': 'hager',
-    'Theben': 'theben', 'Weinzierl': 'weinzierl',
-  };
-  
-  const domain = mfrDomains[manufacturer.shortName] || '';
-  const sourceId = mfrSources[manufacturer.shortName] || 'unknown';
+  // Derive domain dynamically from manufacturer website
+  let domain = '';
+  if (manufacturer.website) {
+    try {
+      domain = new URL(manufacturer.website).hostname.replace('www.', '');
+    } catch (e) {}
+  }
+  // Fallback to hardcoded domains for known manufacturers
+  if (!domain) {
+    const mfrDomains: Record<string, string> = {
+      'Gira': 'gira.de', 'MDT': 'mdt.de', 'JUNG': 'jung.de',
+      'Siemens': 'siemens.com', 'ABB': 'abb.com', 'Schneider Electric': 'se.com',
+      'Hager': 'hager.com', 'Theben': 'theben.de', 'Weinzierl': 'weinzierl.de',
+    };
+    domain = mfrDomains[manufacturer.shortName] || '';
+  }
+  const sourceId = (manufacturer.shortName || 'unknown').toLowerCase().replace(/\s+/g, '-');
 
   // Build targeted search queries
   const queries: string[] = [];
@@ -474,6 +503,60 @@ async function triggerAutoDiscovery(manufacturer: any, segments: any, searchTerm
       });
       console.log('extract-knx-data call:', { pdfUrl, status: extractResp.status });
     } catch (e) { console.error('extract-knx-data call failed:', { pdfUrl, error: e }); }
+  }
+}
+
+// ─── IDENTIFY MANUFACTURER ─────────────────────────────────
+
+async function identifyManufacturer(segments: any) {
+  if (!ANTHROPIC_API_KEY) return null;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'x-api-key': ANTHROPIC_API_KEY,
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5-20250929',
+        max_tokens: 300,
+        messages: [{
+          role: 'user',
+          content: `Identify this KNX manufacturer from its ETS manufacturer code.
+
+Manufacturer ID: ${segments.manufacturerId}
+Hex code: ${segments.manufacturerHex} (decimal: ${parseInt(segments.manufacturerHex, 16)})
+Full KNX ID for context: ${segments.raw}
+Hardware ID hints: ${segments.hardwareId || 'none'}
+Program number: ${segments.programNumber || 'none'}
+
+Common KNX manufacturers and their codes include:
+M-0001 = Siemens, M-0002 = ABB, M-0004 = Albrecht Jung (JUNG), M-0008 = Gira,
+M-0025 = Hager, M-0042 = Theben, M-0048 = Theben, M-0064 = Weinzierl,
+M-0066 = Schneider Electric, M-0069 = Busch-Jaeger, M-007A = Berker,
+M-0083 = JUNG, M-00C8 = MDT, M-00FA = Zennio, M-0138 = Interra,
+M-0162 = MEAN WELL
+
+Respond with ONLY valid JSON: {"fullName": "Theben AG", "shortName": "Theben", "website": "https://www.theben.de", "country": "Germany", "confidence": 0.95}
+
+If you cannot identify the manufacturer, respond with: {"fullName": null, "confidence": 0}`,
+        }],
+      }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    const text = (data.content || []).filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (parsed.confidence < 0.5 || !parsed.fullName) return null;
+    return parsed;
+  } catch (e) {
+    console.error('identifyManufacturer error:', e);
+    return null;
   }
 }
 
