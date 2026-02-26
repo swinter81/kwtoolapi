@@ -151,9 +151,11 @@ serve(async (req) => {
       const pageCount = Math.max(1, Math.round(extractedText.length / 3000));
 
       // 9. Store document metadata
-      const { data: doc, error: docError } = await supabase
+      const docId = crypto.randomUUID();
+      const { error: docError } = await supabase
         .from("community_crawled_documents")
         .insert({
+          id: docId,
           source_id: source_id || "unknown",
           source_url: url,
           filename,
@@ -162,9 +164,7 @@ serve(async (req) => {
           page_count: pageCount,
           storage_key: storagePath,
           document_type: "datasheet",
-        })
-        .select("id")
-        .single();
+        });
 
       if (docError) {
         return new Response(JSON.stringify({ 
@@ -179,7 +179,7 @@ serve(async (req) => {
       for (let i = 0; i < extractedText.length; i += chunkSize) {
         const chunkText = extractedText.slice(i, i + chunkSize);
         chunks.push({
-          document_id: doc.id,
+          document_id: docId,
           chunk_index: chunks.length,
           content: chunkText,
           token_count: Math.round(chunkText.length / 4),
@@ -194,7 +194,7 @@ serve(async (req) => {
         await supabase
           .from("community_crawled_documents")
           .update({ chunk_count: chunks.length })
-          .eq("id", doc.id);
+          .eq("id", docId);
       }
 
       // 11. Update crawl_url status if provided
@@ -211,7 +211,7 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({
         action: "processed",
-        document_id: doc.id,
+        document_id: docId,
         filename,
         sha256,
         size_bytes: sizeBytes,
