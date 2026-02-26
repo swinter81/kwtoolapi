@@ -15,16 +15,67 @@ serve(async (req) => {
     const subResource = pathParts[2] || null;
     const db = getServiceClient();
 
+    // Helper to resolve product ID (knx ID or direct ID)
+    async function resolveProductId(pid: string): Promise<string | null> {
+      if (pid.includes('_H-')) {
+        const { data: prod } = await db.from('community_products').select('id').eq('knx_product_id', pid).single();
+        return prod?.id || null;
+      }
+      return pid;
+    }
+
     if (productId && subResource === 'application-programs') {
       const { limit, offset } = parseQueryParams(url);
-      let prodId = productId;
-      if (productId.includes('_H-')) {
-        const { data: prod } = await db.from('community_products').select('id').eq('knx_product_id', productId).single();
-        if (!prod) return errorResponse('NOT_FOUND', `Product '${productId}' not found.`, 404);
-        prodId = prod.id;
-      }
-      // Note: there's no community_application_programs view, so skip this sub-resource
+      const prodId = await resolveProductId(productId);
+      if (!prodId) return errorResponse('NOT_FOUND', `Product '${productId}' not found.`, 404);
       return listResponse([], { total: 0, limit, offset }, 3600);
+    }
+
+    if (productId && subResource === 'communication-objects') {
+      const prodId = await resolveProductId(productId);
+      if (!prodId) return errorResponse('NOT_FOUND', `Product '${productId}' not found.`, 404);
+      const { data, error } = await db.from('community_communication_objects')
+        .select('*')
+        .eq('product_id', prodId)
+        .order('channel_number', { ascending: true, nullsFirst: true })
+        .order('object_number');
+      if (error) throw error;
+      return successResponse(data || [], undefined, 3600);
+    }
+
+    if (productId && subResource === 'parameters') {
+      const prodId = await resolveProductId(productId);
+      if (!prodId) return errorResponse('NOT_FOUND', `Product '${productId}' not found.`, 404);
+      const { data, error } = await db.from('community_parameters')
+        .select('*')
+        .eq('product_id', prodId)
+        .order('param_group')
+        .order('param_name');
+      if (error) throw error;
+      return successResponse(data || [], undefined, 3600);
+    }
+
+    if (productId && subResource === 'specifications') {
+      const prodId = await resolveProductId(productId);
+      if (!prodId) return errorResponse('NOT_FOUND', `Product '${productId}' not found.`, 404);
+      const { data, error } = await db.from('community_technical_specifications')
+        .select('*')
+        .eq('product_id', prodId)
+        .order('spec_category')
+        .order('spec_name');
+      if (error) throw error;
+      return successResponse(data || [], undefined, 3600);
+    }
+
+    if (productId && subResource === 'functional-blocks') {
+      const prodId = await resolveProductId(productId);
+      if (!prodId) return errorResponse('NOT_FOUND', `Product '${productId}' not found.`, 404);
+      const { data, error } = await db.from('community_functional_blocks')
+        .select('*')
+        .eq('product_id', prodId)
+        .order('block_name');
+      if (error) throw error;
+      return successResponse(data || [], undefined, 3600);
     }
 
     if (productId) {
@@ -37,15 +88,21 @@ serve(async (req) => {
       const { data, error } = await query.single();
       if (error || !data) return errorResponse('NOT_FOUND', `Product '${productId}' not found.`, 404);
 
-      // Lookup manufacturer
-      let mfr = null;
-      if (data.manufacturer_id) {
-        const { data: m } = await db.from('community_manufacturers').select('*').eq('id', data.manufacturer_id).single();
-        mfr = m;
-      }
+      // Lookup manufacturer + counts for new sub-resources
+      const [mfrResult, commObjCount, paramCount, specCount, blockCount] = await Promise.all([
+        data.manufacturer_id ? db.from('community_manufacturers').select('*').eq('id', data.manufacturer_id).single() : Promise.resolve({ data: null }),
+        db.from('community_communication_objects').select('id', { count: 'exact', head: true }).eq('product_id', data.id),
+        db.from('community_parameters').select('id', { count: 'exact', head: true }).eq('product_id', data.id),
+        db.from('community_technical_specifications').select('id', { count: 'exact', head: true }).eq('product_id', data.id),
+        db.from('community_functional_blocks').select('id', { count: 'exact', head: true }).eq('product_id', data.id),
+      ]);
 
       return successResponse({
-        ...formatProductDetail(data, mfr),
+        ...formatProductDetail(data, mfrResult.data),
+        communicationObjects: { count: commObjCount.count || 0, href: `/v1/products/${data.id}/communication-objects` },
+        parameters: { count: paramCount.count || 0, href: `/v1/products/${data.id}/parameters` },
+        technicalSpecifications: { count: specCount.count || 0, href: `/v1/products/${data.id}/specifications` },
+        functionalBlocks: { count: blockCount.count || 0, href: `/v1/products/${data.id}/functional-blocks` },
       }, undefined, 3600);
     }
 

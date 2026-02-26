@@ -21,6 +21,7 @@ const Index = () => {
         <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl">
           A publicly accessible, read-only REST API that resolves KNX manufacturer codes,
           product IDs, and application program identifiers into human-readable names and metadata.
+          Includes detailed communication objects, parameters, technical specifications, and functional blocks per product.
         </p>
       </div>
 

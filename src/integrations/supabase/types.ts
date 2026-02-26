@@ -324,6 +324,96 @@ export type Database = {
       }
     }
     Views: {
+      community_communication_objects: {
+        Row: {
+          channel_name: string | null
+          channel_number: number | null
+          communicate_flag: boolean | null
+          created_at: string | null
+          default_value: string | null
+          description: string | null
+          dpt_id: string | null
+          dpt_name: string | null
+          dpt_size_bits: number | null
+          dpt_unit: string | null
+          extraction_confidence: number | null
+          function_text: string | null
+          functional_block: string | null
+          id: string | null
+          name: string | null
+          object_number: number | null
+          priority: string | null
+          product_id: string | null
+          read_flag: boolean | null
+          read_on_init_flag: boolean | null
+          source_document_id: string | null
+          transmit_flag: boolean | null
+          update_flag: boolean | null
+          updated_at: string | null
+          value_max: string | null
+          value_min: string | null
+          write_flag: boolean | null
+        }
+        Insert: {
+          channel_name?: string | null
+          channel_number?: number | null
+          communicate_flag?: boolean | null
+          created_at?: string | null
+          default_value?: string | null
+          description?: string | null
+          dpt_id?: string | null
+          dpt_name?: string | null
+          dpt_size_bits?: number | null
+          dpt_unit?: string | null
+          extraction_confidence?: number | null
+          function_text?: string | null
+          functional_block?: string | null
+          id?: string | null
+          name?: string | null
+          object_number?: number | null
+          priority?: string | null
+          product_id?: string | null
+          read_flag?: boolean | null
+          read_on_init_flag?: boolean | null
+          source_document_id?: string | null
+          transmit_flag?: boolean | null
+          update_flag?: boolean | null
+          updated_at?: string | null
+          value_max?: string | null
+          value_min?: string | null
+          write_flag?: boolean | null
+        }
+        Update: {
+          channel_name?: string | null
+          channel_number?: number | null
+          communicate_flag?: boolean | null
+          created_at?: string | null
+          default_value?: string | null
+          description?: string | null
+          dpt_id?: string | null
+          dpt_name?: string | null
+          dpt_size_bits?: number | null
+          dpt_unit?: string | null
+          extraction_confidence?: number | null
+          function_text?: string | null
+          functional_block?: string | null
+          id?: string | null
+          name?: string | null
+          object_number?: number | null
+          priority?: string | null
+          product_id?: string | null
+          read_flag?: boolean | null
+          read_on_init_flag?: boolean | null
+          source_document_id?: string | null
+          transmit_flag?: boolean | null
+          update_flag?: boolean | null
+          updated_at?: string | null
+          value_max?: string | null
+          value_min?: string | null
+          write_flag?: boolean | null
+        }
+        Relationships: []
+      }
       community_crawl_runs: {
         Row: {
           chunks_created: number | null
@@ -609,6 +699,45 @@ export type Database = {
         }
         Relationships: []
       }
+      community_functional_blocks: {
+        Row: {
+          block_name: string | null
+          block_type: string | null
+          channel_count: number | null
+          created_at: string | null
+          description: string | null
+          extraction_confidence: number | null
+          id: string | null
+          product_id: string | null
+          source_document_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          block_name?: string | null
+          block_type?: string | null
+          channel_count?: number | null
+          created_at?: string | null
+          description?: string | null
+          extraction_confidence?: number | null
+          id?: string | null
+          product_id?: string | null
+          source_document_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          block_name?: string | null
+          block_type?: string | null
+          channel_count?: number | null
+          created_at?: string | null
+          description?: string | null
+          extraction_confidence?: number | null
+          id?: string | null
+          product_id?: string | null
+          source_document_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       community_manufacturers: {
         Row: {
           application_program_count: number | null
@@ -657,6 +786,75 @@ export type Database = {
           status?: string | null
           updated_at?: string | null
           website_url?: string | null
+        }
+        Relationships: []
+      }
+      community_parameters: {
+        Row: {
+          channel_name: string | null
+          channel_number: number | null
+          created_at: string | null
+          default_value: string | null
+          description: string | null
+          enum_values: Json | null
+          ets_parameter_id: string | null
+          extraction_confidence: number | null
+          id: string | null
+          param_group: string | null
+          param_name: string | null
+          param_subgroup: string | null
+          param_type: string | null
+          product_id: string | null
+          source_document_id: string | null
+          step_size: string | null
+          updated_at: string | null
+          value_max: string | null
+          value_min: string | null
+          value_unit: string | null
+        }
+        Insert: {
+          channel_name?: string | null
+          channel_number?: number | null
+          created_at?: string | null
+          default_value?: string | null
+          description?: string | null
+          enum_values?: Json | null
+          ets_parameter_id?: string | null
+          extraction_confidence?: number | null
+          id?: string | null
+          param_group?: string | null
+          param_name?: string | null
+          param_subgroup?: string | null
+          param_type?: string | null
+          product_id?: string | null
+          source_document_id?: string | null
+          step_size?: string | null
+          updated_at?: string | null
+          value_max?: string | null
+          value_min?: string | null
+          value_unit?: string | null
+        }
+        Update: {
+          channel_name?: string | null
+          channel_number?: number | null
+          created_at?: string | null
+          default_value?: string | null
+          description?: string | null
+          enum_values?: Json | null
+          ets_parameter_id?: string | null
+          extraction_confidence?: number | null
+          id?: string | null
+          param_group?: string | null
+          param_name?: string | null
+          param_subgroup?: string | null
+          param_type?: string | null
+          product_id?: string | null
+          source_document_id?: string | null
+          step_size?: string | null
+          updated_at?: string | null
+          value_max?: string | null
+          value_min?: string | null
+          value_unit?: string | null
         }
         Relationships: []
       }
@@ -734,6 +932,48 @@ export type Database = {
           source_count?: number | null
           specifications?: Json | null
           status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      community_technical_specifications: {
+        Row: {
+          created_at: string | null
+          extraction_confidence: number | null
+          id: string | null
+          product_id: string | null
+          source_document_id: string | null
+          spec_category: string | null
+          spec_name: string | null
+          spec_unit: string | null
+          spec_value: string | null
+          spec_value_numeric: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          extraction_confidence?: number | null
+          id?: string | null
+          product_id?: string | null
+          source_document_id?: string | null
+          spec_category?: string | null
+          spec_name?: string | null
+          spec_unit?: string | null
+          spec_value?: string | null
+          spec_value_numeric?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          extraction_confidence?: number | null
+          id?: string | null
+          product_id?: string | null
+          source_document_id?: string | null
+          spec_category?: string | null
+          spec_name?: string | null
+          spec_unit?: string | null
+          spec_value?: string | null
+          spec_value_numeric?: number | null
           updated_at?: string | null
         }
         Relationships: []
